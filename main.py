@@ -15,26 +15,34 @@ from utils.calorie_calculator import calculate_calories
 from utils.medication import log_medication
 from utils.pet_editor import edit_pet
 
+# --- ANSI colors for warnings and highlights ---
+class Colors:
+    RED = "\033[91m"
+    GREEN = "\033[92m"
+    CYAN = "\033[96m"
+    YELLOW = "\033[93m"
+    END = "\033[0m"
+
+def color_text(text, color):
+    return f"{color}{text}{Colors.END}"
+
 PETS_FILE = "pets.json"
 
 # --- Load pets ---
 try:
-    with open(PETS_FILE, "r") as f:
+    with open(PETS_FILE, "r", encoding="utf-8") as f:
         pets = json.load(f)
         if isinstance(pets, list):
-            # Convert old list format to dict with string keys
             pets = {str(i+1): pet for i, pet in enumerate(pets)}
 except FileNotFoundError:
     pets = {}
 
 # --- Helper functions ---
-
 def save_pets():
     with open(PETS_FILE, "w", encoding="utf-8") as f:
         json.dump(pets, f, indent=2, ensure_ascii=False)
 
 def confirm_action(message):
-    """Ask user to confirm critical action."""
     while True:
         response = input(f"{message} (yes/no): ").strip().lower()
         if response in ["yes", "y"]:
@@ -46,21 +54,20 @@ def confirm_action(message):
             print("Please type 'yes' or 'no'.")
 
 def find_pet_by_name():
-    """Search a pet by name and return the pet object."""
     name = input("Enter pet name to search: ").strip()
     for pet in pets.values():
         if pet["name"].lower() == name.lower():
             print(f"✅ Found: {pet['name']}")
-            # Check for warnings immediately
+            # Auto warnings
             total_cal = sum(f.get("calories", 0) for f in pet.get("feedings", []))
             target = pet.get("calorie_target", 0)
             if total_cal < target:
-                print(f"⚠️ {pet['name']} calories below target today: {total_cal}/{target}")
+                print(color_text(f"⚠️ {pet['name']} calories below target today: {total_cal}/{target}", Colors.RED))
             weekly_change = calculate_recent_weight_change(pet)
             if abs(weekly_change) >= 5:
-                print(f"⚠️ Rapid weight change detected in last 7 days: {weekly_change:+.1f}%")
+                print(color_text(f"⚠️ Rapid weight change in last 7 days: {weekly_change:+.1f}%", Colors.RED))
             return pet
-    print("⚠️ Pet not found.")
+    print(color_text("⚠️ Pet not found.", Colors.RED))
     return None
 
 # --- Main loop ---
@@ -90,10 +97,7 @@ def main():
             weight = float(input("Weight (kg): "))
             cal_target = int(input("Daily calorie target: "))
             cal_density = int(input("Food calorie density per 100g: "))
-
-            # Generate next pet ID safely
             pet_id = str(max([int(k) for k in pets.keys()] + [0]) + 1)
-
             pets[pet_id] = {
                 "name": name,
                 "weight": weight,
@@ -105,7 +109,7 @@ def main():
             }
             save_pets()
             log_action(f"🐾 Added new pet: {name}")
-            print(f"✅ {name} added!\n")
+            print(color_text(f"✅ {name} added!\n", Colors.GREEN))
 
         elif choice == "2":
             pet = find_pet_by_name()
@@ -113,7 +117,7 @@ def main():
                 edit_pet(pet)
                 save_pets()
                 log_action(f"✏️ Edited pet: {pet['name']}")
-                print(f"✅ {pet['name']} updated.\n")
+                print(color_text(f"✅ {pet['name']} updated.\n", Colors.GREEN))
 
         elif choice == "3":
             pet = find_pet_by_name()
@@ -126,7 +130,11 @@ def main():
                 grams = float(input("Grams fed: "))
                 log_feeding_entry(pet, grams)
                 save_pets()
-                print(f"✅ Feeding logged for {pet['name']}.\n")
+                # Below target calories
+                total_cal = sum(f.get("calories", 0) for f in pet.get("feedings", []))
+                if total_cal < pet.get("calorie_target", 0):
+                    print(color_text(f"⚠️ Feeding below daily calorie target! ({total_cal}/{pet['calorie_target']})", Colors.RED))
+                print(color_text(f"✅ Feeding logged for {pet['name']}.\n", Colors.GREEN))
 
         elif choice == "5":
             pet = find_pet_by_name()
@@ -136,7 +144,7 @@ def main():
                 if confirm_action(f"💊 Log {dose} of {med_name} for {pet['name']}?"):
                     log_medication_entry(pet, med_name, dose)
                     save_pets()
-                    print(f"✅ Medication logged for {pet['name']}.\n")
+                    print(color_text(f"✅ Medication logged for {pet['name']}.\n", Colors.GREEN))
 
         elif choice == "6":
             pet = find_pet_by_name()
@@ -145,11 +153,10 @@ def main():
                 if confirm_action(f"⚖️ Log new weight {weight}kg for {pet['name']}?"):
                     log_weight_entry(pet, weight)
                     save_pets()
-                    print(f"✅ Weight logged for {pet['name']}.\n")
-                    # Show warnings immediately
+                    print(color_text(f"✅ Weight logged for {pet['name']}.\n", Colors.GREEN))
                     weekly_change = calculate_recent_weight_change(pet)
                     if abs(weekly_change) >= 5:
-                        print(f"⚠️ Rapid weight change detected in last 7 days: {weekly_change:+.1f}%\n")
+                        print(color_text(f"⚠️ Rapid weight change in last 7 days: {weekly_change:+.1f}%\n", Colors.RED))
 
         elif choice == "7":
             pet = find_pet_by_name()
@@ -164,6 +171,7 @@ def main():
         elif choice == "9":
             pet = find_pet_by_name()
             if pet:
+                print(color_text("Legend: 🟢 Up  ➖ Same  🔻 Down  🌸 Weight bar", Colors.CYAN))
                 plot_weekly_weight_trend(pet)
 
         elif choice == "10":
@@ -172,14 +180,14 @@ def main():
                     pets.clear()
                     save_pets()
                     log_action("🗑️ All data deleted")
-                    print("✅ All data deleted!\n")
+                    print(color_text("✅ All data deleted!\n", Colors.RED))
 
         elif choice == "0":
             print("Goodbye! 🌸")
             break
 
         else:
-            print("⚠️ Invalid choice. Try again.\n")
+            print(color_text("⚠️ Invalid choice. Try again.\n", Colors.RED))
 
 
 if __name__ == "__main__":
