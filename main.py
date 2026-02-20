@@ -8,6 +8,7 @@ from utils.logging_utils import (
     print_daily_summary,
     plot_weight_graph,
     plot_weekly_weight_trend,
+    calculate_weight_change,
     log_action
 )
 from utils.calorie_calculator import calculate_calories
@@ -18,22 +19,19 @@ PETS_FILE = "pets.json"
 
 # --- Load pets ---
 try:
-    with open(PETS_FILE, "r") as f:
+    with open(PETS_FILE, "r", encoding="utf-8") as f:
         pets = json.load(f)
         if isinstance(pets, list):
-            # Convert old list format to dict with string keys
             pets = {str(i+1): pet for i, pet in enumerate(pets)}
 except FileNotFoundError:
     pets = {}
 
 # --- Helper functions ---
-
 def save_pets():
-    with open(PETS_FILE, "w") as f:
-        json.dump(pets, f, indent=2)
+    with open(PETS_FILE, "w", encoding="utf-8") as f:
+        json.dump(pets, f, indent=2, ensure_ascii=False)
 
 def confirm_action(message):
-    """Ask user to confirm critical action."""
     while True:
         response = input(f"{message} (yes/no): ").strip().lower()
         if response in ["yes", "y"]:
@@ -53,27 +51,26 @@ def find_pet_by_name():
     print("⚠️ Pet not found.")
     return None
 
-def print_menu():
-    """Print ASCII header and menu."""
-    print("\n╔═══════════════════════════════════════════╗")
-    print(" 🌸🐾   P a w C a r e   T r a c k e r 🐾🌸")
-    print("╚═══════════════════════════════════════════╝\n")
-    print("1️⃣ Add Pet")
-    print("2️⃣ Edit Pet")
-    print("3️⃣ Search Pet by Name")
-    print("4️⃣ Log Feeding")
-    print("5️⃣ Log Medication")
-    print("6️⃣ Log Weight")
-    print("7️⃣ Daily Summary")
-    print("8️⃣ Weight Graph")
-    print("9️⃣ Weekly Weight Trend")
-    print("🔟 Delete All Data")
-    print("0️⃣ Exit\n")
-
 # --- Main loop ---
 def main():
     while True:
-        print_menu()
+        print("""
+╔═══════════════════════════════════════════╗
+ 🌸🐾   P a w C a r e   T r a c k e r 🐾🌸
+╚═══════════════════════════════════════════╝
+
+1️⃣ Add Pet
+2️⃣ Edit Pet
+3️⃣ Search Pet by Name
+4️⃣ Log Feeding
+5️⃣ Log Medication
+6️⃣ Log Weight
+7️⃣ Daily Summary
+8️⃣ Weight Graph
+9️⃣ Weekly Weight Trend
+🔟 Delete All Data
+0️⃣ Exit
+""")
         choice = input("Choose an option: ").strip()
 
         if choice == "1":
@@ -134,7 +131,10 @@ def main():
                 if confirm_action(f"⚖️ Log new weight {weight}kg for {pet['name']}?"):
                     log_weight_entry(pet, weight)
                     save_pets()
-                    print(f"✅ Weight logged for {pet['name']}.\n")
+                    print(f"✅ Weight logged for {pet['name']}.")
+                    change = calculate_weight_change(pet)
+                    if change is not None:
+                        print(f"📈 Weight change since last log: {change:.1f}%\n")
 
         elif choice == "7":
             pet = find_pet_by_name()
@@ -149,7 +149,6 @@ def main():
         elif choice == "9":
             pet = find_pet_by_name()
             if pet:
-                print("\n")
                 plot_weekly_weight_trend(pet)
 
         elif choice == "🔟" or choice == "10":

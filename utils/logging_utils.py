@@ -2,12 +2,13 @@
 from datetime import datetime, timedelta
 from utils.calorie_calculator import calculate_calories
 from utils.medication import log_medication
+import os
 
 LOG_FILE = "logs.txt"
 
 # --- General logging ---
 def log_action(action: str):
-    """Append an action with timestamp to the log file (UTF-8 safe)."""
+    """Append an action with timestamp to the log file using (UTF-8 safe)."""
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     with open(LOG_FILE, "a", encoding="utf-8") as f:  # UTF-8 to handle emojis
         f.write(f"[{timestamp}] {action}\n")
@@ -30,9 +31,42 @@ def log_medication_entry(pet, med_name, dose):
     log_action(f"💊 Logged medication for {pet['name']}: {med_name} ({dose})")
     return entry
 
+# --- Weight logging ---
+def log_weight_entry(pet, weight):
+    """Log weight with date and timestamp, append to history."""
+    entry = {"date": datetime.now().strftime("%Y-%m-%d"), "weight": weight}
+    pet.setdefault("weight_history", []).append(entry)
+    pet["weight"] = weight  # Update current weight
+    log_action(f"⚖️ Updated weight for {pet['name']}: {weight} kg")
+    return entry
+
+# --- Weight change calculations ---
+def calculate_weight_change(pet):
+    """Return percentage change from first to last weight entry."""
+    history = pet.get("weight_history", [])
+    if len(history) < 2:
+        return 0.0
+    first = history[0]["weight"]
+    last = history[-1]["weight"]
+    return round(((last - first) / first) * 100, 2)
+
+def calculate_recent_weight_change(pet, days=7):
+    """Return percentage change over last N days."""
+    history = pet.get("weight_history", [])
+    if len(history) < 2:
+        return 0.0
+    today = datetime.now().date()
+    start_date = today - timedelta(days=days-1)
+    recent = [entry for entry in history if datetime.strptime(entry["date"], "%Y-%m-%d").date() >= start_date]
+    if len(recent) < 2:
+        return 0.0
+    first = recent[0]["weight"]
+    last = recent[-1]["weight"]
+    return round(((last - first) / first) * 100, 2)
+
 # --- Daily summary ---
 def print_daily_summary(pet):
-    """Print a daily summary with calories, medications, and weight."""
+    """Print a daily summary with calories, medications, weight, and % change."""
     print(f"--- {pet['name']} 🌸 ---")
     
     # Calories
@@ -50,25 +84,20 @@ def print_daily_summary(pet):
             print(f" - {med['med_name']} ({med['dose']}) at {med['time']}")
     else:
         print("⚠️  No medications logged today!")
-    
+
     # Current weight
     weight = pet.get("weight")
     if weight:
         print(f"Weight: ⚖️ {weight} kg")
+        total_change = calculate_weight_change(pet)
+        weekly_change = calculate_recent_weight_change(pet)
+        print(f"Total weight change: {total_change:+.2f}%")
+        print(f"Last 7 days change: {weekly_change:+.2f}%")
     else:
         print("⚠️  No weight logged today!")
     print()
 
-# --- Weight logging ---
-def log_weight_entry(pet, weight):
-    """Log weight with date and timestamp, append to history."""
-    entry = {"date": datetime.now().strftime("%Y-%m-%d"), "weight": weight}
-    pet.setdefault("weight_history", []).append(entry)
-    pet["weight"] = weight  # Update current weight
-    log_action(f"⚖️ Updated weight for {pet['name']}: {weight} kg")
-    return entry
-
-# --- Full weight history ASCII/emoji graph ---
+# --- Full weight graph ---
 def plot_weight_graph(pet, width=20):
     """Plot full ASCII/emoji graph of weight history."""
     history = pet.get("weight_history", [])
@@ -86,9 +115,9 @@ def plot_weight_graph(pet, width=20):
         print(f"{entry['date']}: {bar} {entry['weight']} kg")
     print()
 
-# --- Weekly weight trend with emoji indicators ---
+# --- Weekly weight trend ---
 def plot_weekly_weight_trend(pet, width=30):
-    """Show mini ASCII/emoji graph of weight over the last 7 days with trend symbols."""
+    """Show mini ASCII/emoji graph of weight over last 7 days with trend symbols."""
     history = pet.get("weight_history", [])
     if not history:
         print("⚠️ No weight history yet!\n")
@@ -109,12 +138,12 @@ def plot_weekly_weight_trend(pet, width=30):
     step = (max_w - min_w) / width if max_w != min_w else 1
 
     print(f"📅 Weekly Weight Trend for {pet['name']}")
-    print("Key: 🟢 Up  ➖ Same  🔻 Down\n")
+    print("Key: 🟢 Up  ➖ Same  🔻 Down  🌸 Weight bar\n")
 
     prev_weight = None
     for entry in recent:
         w = entry["weight"]
-        # Determine trend symbol
+        # Trend symbol
         if prev_weight is None:
             symbol = "➖"
         elif w > prev_weight:
@@ -125,7 +154,7 @@ def plot_weekly_weight_trend(pet, width=30):
             symbol = "➖"
         prev_weight = w
 
-        # Calculate bar length
+        # Bar length
         bar_len = max(1, int((w - min_w) / step))  # at least 1 🌸
         bar = "🌸" * bar_len
         print(f"{symbol} {entry['date']}: {bar} {w} kg")
