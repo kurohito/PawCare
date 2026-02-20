@@ -238,62 +238,151 @@ def log_weight_entry(pets):
 
 # --- VIEWING & ANALYTICS ---
 def print_daily_summary(pets):
+    """
+    Display a rich, visual daily summary for each pet — like a pet health dashboard.
+    """
     today_str = datetime.now().strftime("%Y-%m-%d")
-    print("\n" + "="*50)
-    print(color_text("📊 DAILY SUMMARY", Colors.CYAN + Colors.BOLD))
-    print("="*50)
+    print("\n" + "="*80)
+    print(color_text("📊 DAILY PET HEALTH DASHBOARD", Colors.CYAN + Colors.BOLD))
+    print("="*80)
+
+    if not pets:
+        print(Colors.YELLOW + "⚠️  No pets registered. Add one to get started!" + Colors.RESET)
+        print("="*80)
+        return
 
     for pet_name, pet in pets.items():
-        print(f"\n{Colors.BOLD}{pet_name}{Colors.RESET}")
+        print(f"\n{Colors.BOLD}{pet_name.upper()}{Colors.RESET}")
+        print("-" * 80)
 
-        # Feedings
+        # 🐾 BASIC INFO
+        species = pet.get("species", "unknown").capitalize()
+        weight = pet.get("weight", "N/A")
+        unit = load_user_prefs().get("unit", "kg")
+        weight_display = f"{weight} {unit.upper()}" if weight != "N/A" else "N/A"
+        print(f"   🐾 Species: {species} | ⚖️  Current Weight: {weight_display}")
+
+        # 🍽️ FEEDING SCHEDULE
+        schedule = pet.get("feeding_schedule", [])
+        target_cal = pet.get("target_daily_calories", 0)
         feedings = pet.get("feedings", [])
         total_calories = sum(f.get("calories", 0) for f in feedings)
-        target = pet.get("target_daily_calories", 0)
-        if target:
-            percent = (total_calories / target) * 100 if target > 0 else 0
-            print(f"   🍽️  Feedings: {len(feedings)} meals | {total_calories:.1f} kcal / {target} kcal ({percent:.0f}%)")
-            if feedings:
-                print("      Last meal: " + format_time_for_display(feedings[-1]["time"]))
 
-        # Medications (today or overdue)
-        meds_today = []
-        if "medications" in pet:
-            for med in pet["medications"]:
-                next_due = med.get("next_due")
-                if not next_due:
-                    continue
-                try:
-                    if " " in next_due:
-                        due_dt = datetime.strptime(next_due, "%Y-%m-%d %H:%M")
-                    else:
-                        due_dt = datetime.strptime(next_due, "%Y-%m-%d")
-                except ValueError:
-                    continue
-                if due_dt.date() <= datetime.now().date() and not med.get("taken", False):
-                    meds_today.append(med)
+        # Schedule visualization
+        if schedule:
+            cal_str = " + ".join(f"{cal:.0f}" for cal in schedule)
+            print(f"   🍽️  Daily Plan: {cal_str} kcal ({len(schedule)} meals)")
+        else:
+            print(f"   🍽️  Daily Plan: ⚠️  Not set")
 
-        if meds_today:
-            print(color_text(f"   💊 Medications due TODAY ({len(meds_today)} total):", Colors.RED))
-            for med in meds_today:
-                due_time = med.get("dosing_time", "")
-                status = format_medication_status(med)
-                color = Colors.RED if status == "🚨 OVERDUE" else Colors.YELLOW
-                label = f" ({status})" if status != "✅ Taken" else ""
-                if due_time:
-                    print(f"      ➤ {med['medication']} — {med['dose']} at {due_time}{label}")
+        # Progress bar (visual calorie intake)
+        if target_cal > 0:
+            percent = min(100, max(0, (total_calories / target_cal) * 100))
+            bar_length = 20
+            filled = int(bar_length * percent / 100)
+            bar = "█" * filled + "░" * (bar_length - filled)
+            color = Colors.GREEN if percent >= 90 else Colors.YELLOW if percent >= 70 else Colors.RED
+            print(f"   📊 Calorie Intake: {total_calories:.1f} / {target_cal} kcal")
+            print(f"      {color}{bar}{Colors.RESET} {percent:.0f}%")
+        else:
+            print(f"   📊 Calorie Intake: {total_calories:.1f} kcal (Target not set)")
+
+        # Last feeding
+        if feedings:
+            last = feedings[-1]
+            time_str = last.get("time", last.get("timestamp", "unknown"))
+            food = last.get("food_name", last.get("food_name", "Food"))
+            cal_str = f" ({last.get('calories', 0):.0f} kcal)" if last.get("calories") else ""
+            print(f"   ⏱️  Last meal: {format_time_for_display(time_str)} — {food}{cal_str}")
+        else:
+            print(f"   ⏱️  Last meal: ⚠️  No feedings logged today")
+
+        # 💊 MEDICATIONS
+        meds = pet.get("medications", [])
+        overdue = []
+        upcoming = []
+        taken = 0
+
+        for med in meds:
+            next_due = med.get("next_due")
+            if not next_due:
+                continue
+            try:
+                if " " in next_due:
+                    due_dt = datetime.strptime(next_due, "%Y-%m-%d %H:%M")
                 else:
-                    print(f"      ➤ {med['medication']} — {med['dose']}{label}")
+                    due_dt = datetime.strptime(next_due, "%Y-%m-%d")
+            except ValueError:
+                continue
+
+            now = datetime.now()
+            if due_dt <= now and not med.get("taken", False):
+                overdue.append(med)
+            elif due_dt > now:
+                upcoming.append(med)
+            if med.get("taken", False):
+                taken += 1
+
+        # Show medication status
+        if overdue:
+            print(f"   💊 {Colors.RED}🚨 OVERDUE ({len(overdue)}):{Colors.RESET}")
+            for med in overdue:
+                due_time = med.get("dosing_time", "unknown time")
+                print(f"      ➤ {med['medication']} — {med['dose']} (due {format_time_for_display(med['next_due'])})")
+                if med.get("notes"):
+                    print(f"         📝 {med['notes']}")
+        else:
+            print(f"   💊 🟢 All meds on schedule")
+
+        if upcoming:
+            print(f"   💊 ⏳ Upcoming ({len(upcoming)}):")
+            for med in upcoming:
+                due_time = med.get("dosing_time", "unknown time")
+                print(f"      ➤ {med['medication']} — {med['dose']} (due {format_time_for_display(med['next_due'])})")
                 if med.get("notes"):
                     print(f"         📝 {med['notes']}")
 
-        # Weights
+        # 📈 WEIGHT TRENDS (last 5 entries)
         weights = pet.get("weights", [])
         if weights:
             last_weight = weights[-1]["weight"]
-            print(f"   ⚖️  Last weight: {last_weight} kg ({len(weights)} logs)")
+            if len(weights) >= 2:
+                prev_weight = weights[-2]["weight"]
+                change = last_weight - prev_weight
+                trend = "↗️" if change > 0 else "↘️" if change < 0 else "➡️"
+                change_str = f" {trend} {abs(change):.1f}kg" if change != 0 else ""
+            else:
+                change_str = ""
 
-    print("="*50)
+            print(f"   📈 Weight Trend: {last_weight:.1f}kg{change_str} ({len(weights)} entries)")
+        else:
+            print(f"   📈 Weight Trend: ⚠️  No weight logs")
+
+        # 📅 LAST 3 FEEDINGS (if any)
+        if len(feedings) >= 3:
+            recent = feedings[-3:]
+            print(f"   🕒 Recent meals:")
+            for f in recent:
+                time_str = format_time_for_display(f.get("time", f.get("timestamp", "unknown")))
+                food_name = f.get("food_name", "Food")
+                cal_str = f" ({f.get('calories', 0):.0f} kcal)" if f.get("calories") else ""
+                print(f"      ➤ {time_str} — {food_name}{cal_str}")
+        elif feedings:
+            print(f"   🕒 Recent meals: {len(feedings)} entry{'s' if len(feedings) != 1 else ''} logged")
+
+        # 🔔 REMINDERS
+        if pet.get("feeding_reminders", False):
+            print(f"   🔔 Reminder: ✅ ON")
+        else:
+            print(f"   🔔 Reminder: ⚠️  OFF")
+
+        print()
+
+    print("="*80)
+    print(f"📅 Today: {today_str}")
+    print("💡 Tip: Use 'Settings > Manage Feeding' to set or adjust meal plans.")
+    print("="*80)
+
 
 def plot_weekly_weight_trend(pets):
     import matplotlib.pyplot as plt
@@ -848,11 +937,7 @@ def manage_feeding_schedule(pets):
         print(f"💡 Auto-split: Breakfast {schedule[0]:.1f} kcal, Lunch {schedule[1]:.1f} kcal, Dinner {schedule[2]:.1f} kcal")
 
     elif meals == 4:
-        # Breakfast: 40%, Midday1: 20%, Midday2: 20%, Dinner: 20% → Wait! Dinner should be 30%
-        # Correction: Dinner is second largest → 30%, so:
-        # Breakfast: 40%, Midday1: 20%, Midday2: 10%, Dinner: 30% → No, that's uneven.
-        # Better: Breakfast 40%, then split remaining 60% as 20%, 20%, 20% → but dinner should be larger than middle.
-        # So: Breakfast 40%, Middle two: 15% each, Dinner 30% → 40+15+15+30 = 100 ✅
+        # Breakfast: 40%, Midday1: 15%, Midday2: 15%, Dinner: 30%
         schedule = [
             round(target_cal * 0.40, 2),
             round(target_cal * 0.15, 2),
