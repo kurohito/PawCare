@@ -14,3 +14,10 @@
 [2026-02-17 20:00:00] 💊 Logged medication for Arya: Dermotic (0.5ml)
 [2026-02-17 10:00:00] ⚖️ Updated weight for Arya: 3.5 kg[2026-02-20 14:14:07] ⚖️ Updated weight for Arya: 3.6 kg
 [2026-02-20 14:20:14] ⚠️ Arya calories below target: 93.5/200
+[2026-02-20 15:15:45] Updated calorie_target for Arya to 205
+[2026-02-20 15:15:45] ✏️ Edited pet: Arya
+[2026-02-20 16:12:53] 🛏️ Quiet hours set for Arya: 21:30 - None
+[2026-02-20 16:13:12] 🛏️ Quiet hours set for Arya: 21:30 - 08:30
+[2026-02-20 16:13:16] 🔔 Reminder disabled for Arya
+[2026-02-20 16:13:20] 🔔 Reminder enabled for Arya
+[2026-02-20 16:14:37] ✏️ Edited pet: Arya
