@@ -1,11 +1,14 @@
+# main.py
 import json
 from datetime import datetime
-from utils.calorie_calculator import calculate_calories
-from utils.medication import log_medication
+from colorama import init, Fore, Style
+from utils.logging_utils import log_feeding_entry, log_medication_entry, print_daily_summary
+
+init(autoreset=True)  # Reset colors after each print
 
 DATA_FILE = "pets.json"
 
-# Load existing pet data
+# Load pets
 def load_pets():
     try:
         with open(DATA_FILE, "r") as f:
@@ -13,14 +16,27 @@ def load_pets():
     except FileNotFoundError:
         return []
 
-# Save pet data
+# Save pets
 def save_pets(pets):
     with open(DATA_FILE, "w") as f:
         json.dump(pets, f, indent=4)
 
-# Add a new pet
+# Cute banner
+def print_banner():
+    print(Fore.MAGENTA + Style.BRIGHT + "\n🌸 PawCare Tracker 🌸")
+    print(Fore.CYAN + "Because tiny creatures deserve organised love\n")
+
+# Menu display
+def print_menu():
+    print(Fore.YELLOW + "1. Add pet")
+    print(Fore.YELLOW + "2. Log feeding")
+    print(Fore.YELLOW + "3. Log medication")
+    print(Fore.YELLOW + "4. Daily summary")
+    print(Fore.YELLOW + "5. Exit")
+
+# Add pet
 def add_pet(pets):
-    print("\n🌸 Add a New Pet 🌸")
+    print(Fore.MAGENTA + "\n🌸 Add a New Pet 🌸")
     name = input("Pet name: ")
     weight = float(input("Weight (kg): "))
     cal_target = float(input("Daily calorie target: "))
@@ -35,34 +51,35 @@ def add_pet(pets):
     }
     pets.append(pet)
     save_pets(pets)
-    print(f"🌟 {name} added!\n")
+    print(Fore.GREEN + f"🌟 {name} added!\n")
 
 # Log feeding
 def log_feeding(pets):
     if not pets:
-        print("No pets yet. Add a pet first.\n")
+        print(Fore.RED + "No pets yet. Add a pet first.\n")
         return
-
-    print("\n🍽 Log Feeding")
+    print(Fore.CYAN + "\n🍽 Log Feeding")
     for i, pet in enumerate(pets):
         print(f"{i + 1}. {pet['name']}")
     choice = int(input("Select pet by number: ")) - 1
     pet = pets[choice]
 
     grams = float(input("Grams fed: "))
-    calories = calculate_calories(grams, pet["cal_per_100g"])
-    time = datetime.now().strftime("%H:%M")
-    pet["feedings"].append({"grams": grams, "calories": calories, "time": time})
+    entry = log_feeding_entry(pet, grams)
     save_pets(pets)
-    print(f"✅ Logged {calories} cal for {pet['name']} at {time}\n")
+
+    # Show cute calorie progress bar
+    progress = min(entry['calories'] / pet['cal_target'], 1.0)
+    bar = "🌸" * int(progress * 20) + "💤" * (20 - int(progress * 20))
+    print(Fore.GREEN + f"✅ Logged {entry['calories']} cal for {pet['name']} at {entry['time']}")
+    print(Fore.MAGENTA + f"Calorie Progress: [{bar}] {int(progress*100)}%\n")
 
 # Log medication
-def log_medication(pets):
+def log_med(pets):
     if not pets:
-        print("No pets yet. Add a pet first.\n")
+        print(Fore.RED + "No pets yet. Add a pet first.\n")
         return
-
-    print("\n💊 Log Medication")
+    print(Fore.CYAN + "\n💊 Log Medication")
     for i, pet in enumerate(pets):
         print(f"{i + 1}. {pet['name']}")
     choice = int(input("Select pet by number: ")) - 1
@@ -70,64 +87,45 @@ def log_medication(pets):
 
     med_name = input("Medication name: ")
     dose = input("Dose (e.g., 0.5ml): ")
-    time = datetime.now().strftime("%H:%M")
-    pet["medications"].append({"med_name": med_name, "dose": dose, "time": time})
+    entry = log_medication_entry(pet, med_name, dose)
     save_pets(pets)
-    print(f"✅ Logged {med_name} ({dose}) for {pet['name']} at {time}\n")
+    print(Fore.GREEN + f"✅ Logged {med_name} ({dose}) for {pet['name']} at {entry['time']}\n")
 
 # Daily summary
 def daily_summary(pets):
     if not pets:
-        print("No pets yet.\n")
+        print(Fore.RED + "No pets yet.\n")
         return
-
-    print("\n🌸 Daily Summary 🌸\n")
+    print(Fore.MAGENTA + "\n🌸 Daily Summary 🌸\n")
     for pet in pets:
-        print(f"--- {pet['name']} ---")
-        
-        # Calories summary
+        print_daily_summary(pet)
+        # Add a cute bar for total calories
         total_cal = sum(f["calories"] for f in pet.get("feedings", []))
-        target = pet.get("cal_target", 0)
-        print(f"Calories today: {total_cal}/{target} cal")
-        if total_cal < target:
-            print("⚠️  Below target! Consider giving more food.")
-        
-        # Medications summary
-        meds = pet.get("medications", [])
-        if meds:
-            print("Medications given today:")
-            for med in meds:
-                print(f" - {med['med_name']} ({med['dose']}) at {med['time']}")
-        else:
-            print("⚠️  No medications logged today!")
+        progress = min(total_cal / pet["cal_target"], 1.0)
+        bar = "🌸" * int(progress * 20) + "💤" * (20 - int(progress * 20))
+        print(Fore.CYAN + f"Calorie Progress: [{bar}] {int(progress*100)}%\n")
 
-        print()  # Empty line for spacing
-
-# Main CLI loop
+# Main loop
 def main():
     pets = load_pets()
     while True:
-        print("🌸 PawCare Tracker 🌸")
-        print("1. Add pet")
-        print("2. Log feeding")
-        print("3. Log medication")
-        print("4. Daily summary")
-        print("5. Exit")
-        choice = input("Choose an option: ")
+        print_banner()
+        print_menu()
+        choice = input("\nChoose an option: ")
 
         if choice == "1":
             add_pet(pets)
         elif choice == "2":
             log_feeding(pets)
         elif choice == "3":
-            log_medication(pets)
+            log_med(pets)
         elif choice == "4":
             daily_summary(pets)
         elif choice == "5":
-            print("Goodbye! 🌸")
+            print(Fore.MAGENTA + "Goodbye! 🌸")
             break
         else:
-            print("Invalid choice. Try again.\n")
+            print(Fore.RED + "Invalid choice. Try again.\n")
 
 if __name__ == "__main__":
     main()
