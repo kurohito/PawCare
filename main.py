@@ -1,5 +1,3 @@
-# main.py
-
 from utils.colors import Colors
 from utils.logging_utils import (
     load_pets,
@@ -16,6 +14,7 @@ from utils.logging_utils import (
     change_weight_unit,
     delete_all_data,
     reset_user_prefs,
+    manage_feeding_schedule,  # ✅ NEW: Import for feeding schedule
 )
 
 def add_pet():
@@ -27,13 +26,48 @@ def add_pet():
     if name in pets:
         print(Colors.YELLOW + "⚠️  Pet already exists!" + Colors.RESET)
         return
+
+    # Ask for species to determine typical weight range
+    species = input("Enter species (cat/dog): ").strip().lower()
+    if species not in ["cat", "dog"]:
+        print(Colors.RED + "❌ Only 'cat' or 'dog' allowed." + Colors.RESET)
+        return
+
+    # Ask for weight in kg
+    while True:
+        try:
+            weight = float(input(f"Enter {name}'s weight in kg: "))
+            if weight <= 0:
+                print(Colors.RED + "❌ Weight must be positive!" + Colors.RESET)
+                continue
+            break
+        except ValueError:
+            print(Colors.RED + "❌ Invalid weight. Enter a number (e.g., 4.2)." + Colors.RESET)
+
+    # Calculate NRC target calories: RER = 70 × (weight^0.75), MER = RER × 1.2 (adult neutered)
+    rerr = 70 * (weight ** 0.75)
+    target_calories = int(rerr * 1.2)
+
+    # Display calculation for transparency
+    print(f"\n💡 Based on NRC 2006 veterinary guidelines:")
+    print(f"   RER = 70 × ({weight} kg)^0.75 = {rerr:.1f} kcal")
+    print(f"   MER (normal adult) = RER × 1.2 = {target_calories} kcal/day")
+    print(f"   (Source: National Research Council — Nutrient Requirements of Dogs and Cats)")
+
+    # Initialize pet with weight, target calories, and empty logs
     pets[name] = {
+        "species": species,
+        "weight": weight,
+        "target_daily_calories": target_calories,
         "medications": [],
         "feedings": [],
-        "weights": []
+        "weights": [],
+        "feeding_schedule": [],      # ✅ Ensure keys exist for new system
+        "feeding_reminders": False
     }
+
     save_pets(pets)
-    print(Colors.GREEN + f"✅ Pet '{name}' added successfully!" + Colors.RESET)
+    print(Colors.GREEN + f"✅ Pet '{name}' ({species}) added with weight {weight} kg and target {target_calories} kcal/day!" + Colors.RESET)
 
 
 def edit_pet():
@@ -49,11 +83,32 @@ def edit_pet():
         print(Colors.RED + "❌ Pet not found!" + Colors.RESET)
         return
 
+    pet = pets[name]
     print(f"\nEditing: {name}")
+
+    # If weight is missing, ask for it
+    if "weight" not in pet or pet["weight"] is None:
+        print(Colors.YELLOW + "⚠️  Weight not set. Please enter it now." + Colors.RESET)
+        while True:
+            try:
+                weight = float(input(f"Enter {name}'s weight in kg: "))
+                if weight <= 0:
+                    print(Colors.RED + "❌ Weight must be positive!" + Colors.RESET)
+                    continue
+                pet["weight"] = weight
+                rerr = 70 * (weight ** 0.75)
+                pet["target_daily_calories"] = int(rerr * 1.2)
+                print(f"💡 Auto-calculated target: {pet['target_daily_calories']} kcal/day (NRC 2006)")
+                break
+            except ValueError:
+                print(Colors.RED + "❌ Invalid weight. Enter a number." + Colors.RESET)
+
+    print("\nOptions:")
     print("1. Add Medication")
     print("2. Remove Medication")
-    print("3. Add Feeding Log (manual)")
-    print("4. Add Weight Log (manual)")
+    print("3. Update Weight (recalculates calories)")
+    print("4. Add Feeding Log (manual)")
+    print("5. Add Weight Log (manual)")
     choice = input("Choose an option: ").strip()
 
     if choice == "1":
@@ -65,35 +120,52 @@ def edit_pet():
             "name": med_name,
             "dose": dose,
             "interval_hours": interval_hours,
-            "next_due": "2026-01-01 00:00",  # placeholder — will be calculated on first log or view
+            "next_due": "2026-01-01 00:00",  # placeholder
         }
-        pets[name]["medications"].append(med)
+        pet["medications"].append(med)
         print(Colors.GREEN + f"✅ Medication '{med_name}' added!" + Colors.RESET)
 
     elif choice == "2":
-        if not pets[name]["medications"]:
+        if not pet["medications"]:
             print(Colors.YELLOW + "⚠️  No medications to remove." + Colors.RESET)
             return
-        for i, med in enumerate(pets[name]["medications"], 1):
+        for i, med in enumerate(pet["medications"], 1):
             interval = f" (Every {med['interval_hours']}h)" if med.get("interval_hours") else " (One-time)"
             print(f"{i}. {med['name']} — {med['dose']}{interval}")
         try:
             idx = int(input("Enter number to remove: ")) - 1
-            if 0 <= idx < len(pets[name]["medications"]):
-                removed = pets[name]["medications"].pop(idx)
+            if 0 <= idx < len(pet["medications"]):
+                removed = pet["medications"].pop(idx)
                 print(Colors.GREEN + f"✅ Removed: {removed['name']}" + Colors.RESET)
             else:
                 print(Colors.RED + "❌ Invalid selection." + Colors.RESET)
         except ValueError:
             print(Colors.RED + "❌ Invalid input." + Colors.RESET)
 
-    elif choice == "3":
+    elif choice == "3":  # Update weight → recalculate calories
+        while True:
+            try:
+                new_weight = float(input(f"Enter new weight for {name} (kg): "))
+                if new_weight <= 0:
+                    print(Colors.RED + "❌ Weight must be positive!" + Colors.RESET)
+                    continue
+                old_weight = pet["weight"]
+                pet["weight"] = new_weight
+                rerr = 70 * (new_weight ** 0.75)
+                pet["target_daily_calories"] = int(rerr * 1.2)
+                print(f"💡 Updated from {old_weight}kg → {new_weight}kg")
+                print(f"   New target: {pet['target_daily_calories']} kcal/day (NRC 2006)")
+                break
+            except ValueError:
+                print(Colors.RED + "❌ Invalid weight. Enter a number." + Colors.RESET)
+
+    elif choice == "4":
         grams = float(input("Enter food amount in grams: "))
         calories = float(input("Enter calories: "))
         log_feeding_entry(pets, name, grams, calories)
         print(Colors.GREEN + "✅ Feeding logged!" + Colors.RESET)
 
-    elif choice == "4":
+    elif choice == "5":
         weight = float(input("Enter weight (kg): "))
         log_weight_entry(pets, name, weight)
         print(Colors.GREEN + "✅ Weight logged!" + Colors.RESET)
@@ -152,7 +224,14 @@ def log_menu():
         print(Colors.RED + "❌ Pet not found!" + Colors.RESET)
         return
 
-    print(f"\nLogging for {name}:")
+    pet = pets[name]
+    # Show target if set
+    if pet.get("target_daily_calories"):
+        print(f"\n🎯 Target daily calories: {pet['target_daily_calories']} kcal (NRC 2006)")
+    else:
+        print(f"\n⚠️  No target calories set. Set weight in Edit Pet.")
+
+    print(f"Logging for {name}:")
     print("1. Log Medication")
     print("2. Log Feeding")
     print("3. Log Weight")
@@ -160,7 +239,7 @@ def log_menu():
 
     if choice == "1":
         print("Available medications:")
-        meds = pets[name].get("medications", [])
+        meds = pet.get("medications", [])
         if not meds:
             print(Colors.YELLOW + "⚠️  No medications set. Add one in Edit Pet." + Colors.RESET)
             return
@@ -236,28 +315,30 @@ def main():
             while True:
                 print("\n" + "="*56)
                 print("⚙️  SETTINGS")
-                print("1. Manage Medications (with time & repeating) (per pet)")
-                print("2. Change Weight Unit (Current: " + load_user_prefs().get("unit", "kg").upper() + ")")
-                print("3. View Upcoming Medications")  # ← This is the critical one!
-                print("4. Delete All Data (Clear Files)")
-                print("5. Reset User Preferences")
-                print("6. Back to Main Menu")
+                print("1. Set Feeding Schedule (meals, calories, reminders)")
+                print("2. Manage Medications (with time & repeating) (per pet)")
+                print("3. Change Weight Unit (Current: " + load_user_prefs().get("unit", "kg").upper() + ")")
+                print("4. View Upcoming Medications")
+                print("5. Delete All Data (Clear Files)")
+                print("6. Reset User Preferences")
+                print("7. Back to Main Menu")
                 print("="*56)
                 sub_choice = input("Choose an option: ").strip()
 
                 if sub_choice == "1":
-                    manage_medications(load_pets())  # ← Load fresh pets here too!
+                    manage_feeding_schedule(load_pets())  # ✅ NEW: Call feeding schedule manager
                 elif sub_choice == "2":
-                    change_weight_unit()
+                    manage_medications(load_pets())
                 elif sub_choice == "3":
-                    # ✅ FIX: Load pets fresh and pass to function
+                    change_weight_unit()
+                elif sub_choice == "4":
                     pets = load_pets()
                     view_upcoming_medications(pets)
-                elif sub_choice == "4":
-                    delete_all_data()
                 elif sub_choice == "5":
-                    reset_user_prefs()
+                    delete_all_data()
                 elif sub_choice == "6":
+                    reset_user_prefs()
+                elif sub_choice == "7":
                     break
                 else:
                     print(Colors.RED + "❌ Invalid option. Try again." + Colors.RESET)
