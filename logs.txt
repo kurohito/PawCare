@@ -1,2 +1,15 @@
-[2026-02-20 13:57:41] ⚖️ Updated weight for Arya: 3.5 kg
-[2026-02-20 13:58:09] ⚖️ Updated weight for Arya: 3.4 kg
+[2026-02-15 09:00:00] 🐾 Logged feeding for Arya: 50g (42.5 cal)
+[2026-02-15 13:00:00] 🐾 Logged feeding for Arya: 60g (51.0 cal)
+[2026-02-15 08:00:00] 💊 Logged medication for Arya: Metacam (0.5ml)
+[2026-02-15 20:00:00] 💊 Logged medication for Arya: Dermotic (0.5ml)
+[2026-02-15 10:00:00] ⚖️ Updated weight for Arya: 3.3 kg
+[2026-02-16 09:00:00] 🐾 Logged feeding for Arya: 55g (46.75 cal)
+[2026-02-16 13:00:00] 🐾 Logged feeding for Arya: 65g (55.25 cal)
+[2026-02-16 08:00:00] 💊 Logged medication for Arya: Metacam (0.5ml)
+[2026-02-16 20:00:00] 💊 Logged medication for Arya: Dermotic (0.5ml)
+[2026-02-16 10:00:00] ⚖️ Updated weight for Arya: 3.4 kg
+[2026-02-17 09:00:00] 🐾 Logged feeding for Arya: 50g (42.5 cal)
+[2026-02-17 13:00:00] 🐾 Logged feeding for Arya: 60g (51.0 cal)
+[2026-02-17 08:00:00] 💊 Logged medication for Arya: Metacam (0.5ml)
+[2026-02-17 20:00:00] 💊 Logged medication for Arya: Dermotic (0.5ml)
+[2026-02-17 10:00:00] ⚖️ Updated weight for Arya: 3.5 kg
