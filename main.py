@@ -56,19 +56,22 @@ def find_pet_by_name():
 def main():
     while True:
         print("""
-🌸 PawCare Tracker 🌸
-1. Add Pet
-2. Edit Pet
-3. Search Pet by Name
-4. Log Feeding
-5. Log Medication
-6. Log Weight
-7. Daily Summary
-8. Weight Graph
-9. Delete All Data
-0. Exit
+╔═══════════════════════════════════════════╗
+ 🌸🐾   P a w C a r e   T r a c k e r 🐾🌸
+╚═══════════════════════════════════════════╝
+
+1️⃣  Add Pet
+2️⃣  Edit Pet
+3️⃣  Search Pet by Name
+4️⃣  Log Feeding 🍽
+5️⃣  Log Medication 💊
+6️⃣  Log Weight ⚖️
+7️⃣  Daily Summary 📊
+8️⃣  Weight Graph 📈
+9️⃣  Delete All Data 🗑️
+0️⃣  Exit 🚪
 """)
-        choice = input("Choose an option: ").strip()
+        choice = input("✨ Choose an option: ").strip()
 
         if choice == "1":
             name = input("Pet name: ").strip()
