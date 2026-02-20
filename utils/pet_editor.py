@@ -1,6 +1,6 @@
 # utils/pet_editor.py
 
-from logging_utils import log_action
+from utils.logging_utils import log_action
 import json
 
 PET_FILE = "pets.json"
