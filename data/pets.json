@@ -39,13 +39,20 @@
         "calories": 80.51,
         "time": "2026-02-20 09:00:00",
         "notes": "needed before medication"
+      },
+      {
+        "food_name": "Breakfast",
+        "grams": 82.4,
+        "calories": 68.39,
+        "time": "2026-02-20 09:00:00",
+        "notes": ""
       }
     ],
     "weights": [],
     "feeding_schedule": [
-      68.67,
-      68.67,
-      68.67
+      82.4,
+      61.8,
+      61.8
     ],
     "feeding_reminders": true,
     "calories_per_100g": 83.0

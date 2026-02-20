@@ -942,8 +942,7 @@ def manage_feeding_schedule(pets):
 
 def manage_feeding(pets):
     """
-    Sub-menu for feeding: View or Set schedule.
-    Does not change any existing functions — just wraps them.
+    Sub-menu for feeding: View, Set, or Delete schedule.
     """
     if not pets:
         print(Colors.YELLOW + "⚠️  No pets available. Add a pet first." + Colors.RESET)
@@ -956,6 +955,7 @@ def manage_feeding(pets):
         print("="*50)
         print("1. View Feeding Schedule")
         print("2. Set Feeding Schedule")
+        print("3. Delete Feeding Schedule")  # ✅ NEW OPTION
         print("0. Back to Settings")
         print("-" * 50)
         choice = input("Choose option: ").strip()
@@ -963,11 +963,45 @@ def manage_feeding(pets):
         if choice == "1":
             view_feeding_schedule(pets)
         elif choice == "2":
-            manage_feeding_schedule(pets)  # Your existing function — unchanged!
+            manage_feeding_schedule(pets)
+        elif choice == "3":
+            delete_feeding_schedule(pets)  # ✅ NEW FUNCTION
         elif choice == "0":
             break
         else:
             print(Colors.RED + "❌ Invalid option." + Colors.RESET)
+
+def delete_feeding_schedule(pets):
+    """
+    Deletes the feeding schedule and reminders for a selected pet.
+    """
+    pet_name = select_pet(pets)
+    if not pet_name:
+        return
+
+    pet = pets[pet_name]
+    schedule = pet.get("feeding_schedule", [])
+    reminders = pet.get("feeding_reminders", False)
+
+    if not schedule and not reminders:
+        print(Colors.YELLOW + f"⚠️  No feeding schedule set for {pet_name}." + Colors.RESET)
+        return
+
+    print(f"\n⚠️  You are about to delete the feeding schedule for {pet_name}:")
+    if schedule:
+        print(f"   Schedule: {schedule} kcal")
+    if reminders:
+        print(f"   Reminders: ON")
+
+    confirm = input("\nAre you SURE you want to delete this? (y/N): ").strip().lower()
+
+    if confirm == 'y':
+        pet["feeding_schedule"] = []
+        pet["feeding_reminders"] = False
+        save_pets(pets)
+        print(Colors.GREEN + f"✅ Feeding schedule and reminders deleted for {pet_name}." + Colors.RESET)
+    else:
+        print(Colors.YELLOW + "❌ Deletion cancelled." + Colors.RESET)
 
 def view_feeding_schedule(pets):
     """
@@ -988,7 +1022,7 @@ def view_feeding_schedule(pets):
     print("="*50)
 
     if not schedule:
-        print("   🚫 No feeding schedule set.")
+        print("   🚫 No feeding schedule set. Use 'Set Feeding Schedule' to define meals.")
     else:
         print(f"   🍽️  Meals per day: {len(schedule)}")
         try:
