@@ -1,1 +1,38 @@
-[]
+{
+  "1": {
+    "name": "Arya",
+    "weight": 3.3,
+    "calorie_target": 205,
+    "calorie_density": 85,
+    "feedings": [
+      {"grams": 50, "calories": 42.5, "time": "09:00"},
+      {"grams": 60, "calories": 51.0, "time": "14:00"},
+      {"grams": 55, "calories": 46.75, "time": "21:00"}
+    ],
+    "medications": [
+      {"med_name": "Metacam", "dose": "0.5ml", "time": "09:00"},
+      {"med_name": "Ear Drops", "dose": "0.5ml per ear", "time": "14:00"},
+      {"med_name": "Ear Drops", "dose": "0.5ml per ear", "time": "21:00"}
+    ],
+    "weight_history": [
+      {"date": "2026-02-15", "weight": 3.3},
+      {"date": "2026-02-16", "weight": 3.3},
+      {"date": "2026-02-17", "weight": 3.3}
+    ]
+  },
+  "2": {
+    "name": "Luna",
+    "weight": 3.8,
+    "calorie_target": 180,
+    "calorie_density": 90,
+    "feedings": [
+      {"grams": 40, "calories": 36.0, "time": "08:30"},
+      {"grams": 45, "calories": 40.5, "time": "13:00"}
+    ],
+    "medications": [],
+    "weight_history": [
+      {"date": "2026-02-15", "weight": 3.85},
+      {"date": "2026-02-16", "weight": 3.8}
+    ]
+  }
+}
