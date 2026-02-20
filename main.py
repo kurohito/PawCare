@@ -1,3 +1,5 @@
+# main.py
+
 import json
 from utils.logging_utils import (
     log_feeding_entry,
@@ -8,12 +10,17 @@ from utils.logging_utils import (
     plot_weekly_weight_trend,
     log_action,
     calculate_recent_weight_change,
+    start_feeding_scheduler,
+    toggle_reminder,
+    snooze_reminder,
+    set_quiet_hours
 )
 from utils.calorie_calculator import calculate_calories
 from utils.medication import log_medication
 from utils.pet_editor import edit_pet
+import threading
 
-# --- ANSI colors for warnings and highlights ---
+# --- ANSI colors ---
 class Colors:
     RED = "\033[91m"
     GREEN = "\033[92m"
@@ -64,13 +71,15 @@ def find_pet_by_name():
             weekly_change = calculate_recent_weight_change(pet)
             if abs(weekly_change) >= 5:
                 print(color_text(f"⚠️ Rapid weight change in last 7 days: {weekly_change:+.1f}%", Colors.RED))
+            # Reminder status
+            reminder_status = "🟢 On" if pet.get("reminder_enabled", False) else "🔴 Off"
+            print(f"Reminder status: {reminder_status}")
             return pet
     print(color_text("⚠️ Pet not found.", Colors.RED))
     return None
 
 # --- Mini-sparkline generator ---
 def mini_sparkline(pet, width=20):
-    """Return a string with colored sparkline for daily summary."""
     history = pet.get("weight_history", [])
     if len(history) < 2:
         return ""
@@ -92,26 +101,36 @@ def mini_sparkline(pet, width=20):
 
 # --- Main loop ---
 def main():
+    # Start background feeding scheduler for all pets
+    for pet in pets.values():
+        if pet.get("reminder_enabled", False):
+            start_feeding_scheduler(pet)
+
     while True:
         print("""
 ╔═══════════════════════════════════════════╗
  🌸🐾   P a w C a r e   T r a c k e r 🐾🌸
 ╚═══════════════════════════════════════════╝
 
-1️⃣ Add Pet
-2️⃣ Edit Pet
-3️⃣ Search Pet by Name
-4️⃣ Log Feeding
-5️⃣ Log Medication
-6️⃣ Log Weight
-7️⃣ Daily Summary
-8️⃣ Weight Graph
-9️⃣ Weekly Weight Trend
-🔟 Delete All Data
-0️⃣ Exit
+1 Add Pet
+2 Edit Pet
+3 Search Pet by Name
+4 Log Feeding
+5 Log Medication
+6 Log Weight
+7 Daily Summary
+8 Weight Graph
+9 Weekly Weight Trend
+10 Reminders
+11 Set Feeding Schedule
+X Delete All Data
+0 Exit
 """)
         choice = input("Choose an option: ").strip()
 
+        # --------------------------
+        # Add Pet
+        # --------------------------
         if choice == "1":
             name = input("Pet name: ").strip()
             weight = float(input("Weight (kg): "))
@@ -125,12 +144,22 @@ def main():
                 "calorie_density": cal_density,
                 "feedings": [],
                 "medications": [],
-                "weight_history": []
+                "weight_history": [],
+                "feeding_times": ["09:00","15:00","21:00"],
+                "reminder_enabled": True,
+                "feeding_schedule": ["09:00","15:00","21:00"],
+                "snooze_until": None,
+                "quiet_hours": {"start": None, "end": None}
             }
             save_pets()
             log_action(f"🐾 Added new pet: {name}")
             print(color_text(f"✅ {name} added!\n", Colors.GREEN))
+            if pets[pet_id]["reminder_enabled"]:
+                start_feeding_scheduler(pets[pet_id])
 
+        # --------------------------
+        # Edit Pet
+        # --------------------------
         elif choice == "2":
             pet = find_pet_by_name()
             if pet and confirm_action(f"✏️ Are you sure you want to edit {pet['name']}?"):
@@ -139,23 +168,31 @@ def main():
                 log_action(f"✏️ Edited pet: {pet['name']}")
                 print(color_text(f"✅ {pet['name']} updated.\n", Colors.GREEN))
 
+        # --------------------------
+        # Search Pet
+        # --------------------------
         elif choice == "3":
             pet = find_pet_by_name()
             if pet:
-                print()  # newline after warnings
+                print()
 
+        # --------------------------
+        # Log Feeding
+        # --------------------------
         elif choice == "4":
             pet = find_pet_by_name()
             if pet:
                 grams = float(input("Grams fed: "))
                 log_feeding_entry(pet, grams)
                 save_pets()
-                 # Below target calories
                 total_cal = sum(f.get("calories", 0) for f in pet.get("feedings", []))
                 if total_cal < pet.get("calorie_target", 0):
                     print(color_text(f"⚠️ Feeding below daily calorie target! ({total_cal}/{pet['calorie_target']})", Colors.RED))
                 print(color_text(f"✅ Feeding logged for {pet['name']}.\n", Colors.GREEN))
 
+        # --------------------------
+        # Log Medication
+        # --------------------------
         elif choice == "5":
             pet = find_pet_by_name()
             if pet:
@@ -166,6 +203,9 @@ def main():
                     save_pets()
                     print(color_text(f"✅ Medication logged for {pet['name']}.\n", Colors.GREEN))
 
+        # --------------------------
+        # Log Weight
+        # --------------------------
         elif choice == "6":
             pet = find_pet_by_name()
             if pet:
@@ -178,6 +218,9 @@ def main():
                     if abs(weekly_change) >= 5:
                         print(color_text(f"⚠️ Rapid weight change in last 7 days: {weekly_change:+.1f}%\n", Colors.RED))
 
+        # --------------------------
+        # Daily Summary
+        # --------------------------
         elif choice == "7":
             pet = find_pet_by_name()
             if pet:
@@ -186,18 +229,76 @@ def main():
                 if spark:
                     print(f"📈 Weight trend: {spark}\n")
 
+        # --------------------------
+        # Weight Graph
+        # --------------------------
         elif choice == "8":
             pet = find_pet_by_name()
             if pet:
                 plot_weight_graph(pet)
 
+        # --------------------------
+        # Weekly Weight Trend (Restored)
+        # --------------------------
         elif choice == "9":
             pet = find_pet_by_name()
             if pet:
-                print(color_text("Legend: 🟢 Up  ➖ Same  🔻 Down  ▇ Weight bar", Colors.CYAN))
                 plot_weekly_weight_trend(pet)
 
+        # --------------------------
+        # Reminders Menu
+        # --------------------------
         elif choice == "10":
+            pet = find_pet_by_name()
+            if pet:
+                while True:
+                    print(f"""
+--- Reminders for {pet['name']} ---
+1️⃣ Toggle Reminder On/Off
+2️⃣ Snooze Reminder (minutes)
+3️⃣ Set Quiet Hours
+4️⃣ Back to Main Menu
+Current status: {"🟢 On" if pet.get("reminder_enabled") else "🔴 Off"}
+""")
+                    r_choice = input("Choose an option: ").strip()
+                    if r_choice == "1":
+                        toggle_reminder(pet)
+                        save_pets()
+                    elif r_choice == "2":
+                        minutes = int(input("Snooze for how many minutes? "))
+                        snooze_reminder(pet, minutes)
+                        save_pets()
+                    elif r_choice == "3":
+                        start = input("Quiet hours start (HH:MM or empty): ").strip() or None
+                        end = input("Quiet hours end (HH:MM or empty): ").strip() or None
+                        set_quiet_hours(pet, start, end)
+                        save_pets()
+                    elif r_choice == "4":
+                        break
+                    else:
+                        print(color_text("⚠️ Invalid choice. Try again.\n", Colors.RED))
+
+        # --------------------------
+        # Set Feeding Schedule
+        # --------------------------
+        elif choice == "11":
+            pet = find_pet_by_name()
+            if pet:
+                print(f"\nCurrent feeding times: {pet.get('feeding_times', [])}")
+                times_input = input("Enter feeding times separated by commas (HH:MM): ").strip()
+                if times_input:
+                    pet["feeding_times"] = [t.strip() for t in times_input.split(",")]
+                enable_reminder = input("Enable reminders? (yes/no): ").strip().lower()
+                pet["reminder_enabled"] = enable_reminder in ["yes","y"]
+                save_pets()
+                print(color_text(f"✅ Feeding schedule updated for {pet['name']}\n", Colors.GREEN))
+                if pet["reminder_enabled"]:
+                    start_feeding_scheduler(pet)
+
+        # --------------------------
+        # Delete All Data
+        # --------------------------
+        elif choice == "X":
             if confirm_action("⚠️ Are you sure you want to DELETE ALL DATA? This cannot be undone."):
                 if confirm_action("❗ Please confirm AGAIN to permanently delete all data."):
                     pets.clear()
@@ -205,13 +306,15 @@ def main():
                     log_action("🗑️ All data deleted")
                     print(color_text("✅ All data deleted!\n", Colors.RED))
 
-        elif choice == "0":
+        # --------------------------
+        # Exit
+        # --------------------------
+        elif choice.upper() == "0":
             print("Goodbye! 🌸")
             break
 
         else:
             print(color_text("⚠️ Invalid choice. Try again.\n", Colors.RED))
-
 
 if __name__ == "__main__":
     main()

@@ -1,94 +1,132 @@
 # utils/pet_editor.py
-
 from utils.logging_utils import log_action
-import json
+from datetime import datetime
 
-PET_FILE = "pets.json"
 
-def load_pets():
-    """Load pet data from JSON file."""
-    try:
-        with open(PET_FILE, "r") as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return []
+def _validate_and_clean_times(times_list):
+    """
+    Validate HH:MM format, remove duplicates, and sort chronologically.
+    """
+    valid_times = []
 
-def save_pets(pets):
-    """Save pet data to JSON file."""
-    with open(PET_FILE, "w") as f:
-        json.dump(pets, f, indent=4)
+    for t in times_list:
+        try:
+            datetime.strptime(t, "%H:%M")
+            valid_times.append(t)
+        except ValueError:
+            print(f"⚠️ Invalid time skipped: {t}")
 
-def edit_pet(pet_name):
-    """Edit an existing pet's details safely with confirmation."""
-    pets = load_pets()
-    pet = next((p for p in pets if p["name"].lower() == pet_name.lower()), None)
+    # Remove duplicates
+    valid_times = list(set(valid_times))
 
-    if not pet:
-        print(f"No pet found with the name '{pet_name}'.")
-        return
+    # Sort times
+    valid_times.sort(key=lambda x: datetime.strptime(x, "%H:%M"))
 
-    print(f"\nEditing {pet['name']}'s details. Press Enter to keep current value. Type 'cancel' at any time to abort.\n")
+    return valid_times
+
+
+def edit_pet(pet):
+    """
+    Edit a single pet dictionary safely.
+    Allows editing: name, weight, calorie_target,
+    calorie_density, feeding_schedule.
+    """
+
+    print(f"\nEditing {pet['name']}'s details.")
+    print("Press Enter to keep current value.\n")
 
     changes = {}
 
-    # Edit name
+    # --- Name ---
     new_name = input(f"Name [{pet['name']}]: ").strip()
-    if new_name.lower() == "cancel":
-        print("Edit cancelled.\n")
-        return
     if new_name and new_name != pet['name']:
         changes['name'] = (pet['name'], new_name)
 
-    # Edit weight
+    # --- Weight ---
     while True:
         new_weight = input(f"Weight in kg [{pet['weight']}]: ").strip()
-        if new_weight.lower() == "cancel":
-            print("Edit cancelled.\n")
-            return
         if not new_weight:
             break
         try:
             new_weight_val = float(new_weight)
+            if new_weight_val <= 0:
+                print("⚠️ Weight must be positive.")
+                continue
             if new_weight_val != pet['weight']:
                 changes['weight'] = (pet['weight'], new_weight_val)
             break
         except ValueError:
-            print("Please enter a valid number or 'cancel' to abort.")
+            print("⚠️ Invalid number. Try again.")
 
-    # Edit calorie target
+    # --- Daily calorie target ---
     while True:
-        new_calories = input(f"Daily calorie target [{pet['calorie_target']}]: ").strip()
-        if new_calories.lower() == "cancel":
-            print("Edit cancelled.\n")
-            return
-        if not new_calories:
+        new_cal = input(f"Daily calorie target [{pet['calorie_target']}]: ").strip()
+        if not new_cal:
             break
         try:
-            new_calories_val = float(new_calories)
-            if new_calories_val != pet['calorie_target']:
-                changes['calorie_target'] = (pet['calorie_target'], new_calories_val)
+            new_cal_val = int(new_cal)
+            if new_cal_val <= 0:
+                print("⚠️ Must be positive.")
+                continue
+            if new_cal_val != pet['calorie_target']:
+                changes['calorie_target'] = (pet['calorie_target'], new_cal_val)
             break
         except ValueError:
-            print("Please enter a valid number or 'cancel' to abort.")
+            print("⚠️ Invalid number. Try again.")
 
+    # --- Calorie density per 100g ---
+    while True:
+        new_density = input(f"Calorie density per 100g [{pet['calorie_density']}]: ").strip()
+        if not new_density:
+            break
+        try:
+            new_density_val = int(new_density)
+            if new_density_val <= 0:
+                print("⚠️ Must be positive.")
+                continue
+            if new_density_val != pet['calorie_density']:
+                changes['calorie_density'] = (pet['calorie_density'], new_density_val)
+            break
+        except ValueError:
+            print("⚠️ Invalid number. Try again.")
+
+    # --- Feeding schedule ---
+    edit_schedule = input("\nDo you want to edit feeding times? (yes/no): ").strip().lower()
+
+    if edit_schedule in ['yes', 'y']:
+        schedule = pet.get("feeding_schedule", [])
+        print("Current feeding times (24h format):", schedule if schedule else "None")
+
+        new_times = input(
+            "Enter new feeding times, comma-separated (e.g., 09:00,13:00,18:00): "
+        ).strip()
+
+        if new_times:
+            times_list = [t.strip() for t in new_times.split(",") if t.strip()]
+            cleaned_times = _validate_and_clean_times(times_list)
+
+            if cleaned_times:
+                if cleaned_times != schedule:
+                    changes['feeding_schedule'] = (schedule, cleaned_times)
+            else:
+                print("⚠️ No valid times entered. Schedule unchanged.")
+
+    # --- Apply changes ---
     if not changes:
-        print("No changes made.\n")
+        print("\nNo changes made.\n")
         return
 
-    # Summary and confirmation
     print("\nReview changes:")
     for field, (old, new) in changes.items():
-        print(f"- {field.capitalize()}: {old} → {new}")
+        print(f"- {field}: {old} → {new}")
 
-    confirm = input("Apply these changes? (y/n): ").strip().lower()
+    confirm = input("\nApply these changes? (y/n): ").strip().lower()
     if confirm != "y":
         print("Edit cancelled.\n")
         return
 
-    # Apply changes
     for field, (_, new_val) in changes.items():
         pet[field] = new_val
         log_action(f"Updated {field} for {pet['name']} to {new_val}")
 
-    save_pets(pets)
-    print(f"\n{pet['name']}'s details updated successfully!\n")
+    print(f"\n✅ {pet['name']}'s details updated successfully!\n")

@@ -1,10 +1,20 @@
 # utils/logging_utils.py
+
 from datetime import datetime, timedelta
 from utils.calorie_calculator import calculate_calories
 from utils.medication import log_medication
-import os
+import threading
+import time
+
+try:
+    from plyer import notification
+except ImportError:
+    notification = None  # Desktop notifications optional
 
 LOG_FILE = "logs.txt"
+
+# Store running schedulers so we don't duplicate threads
+_active_schedulers = {}
 
 # --- ANSI colors ---
 class Colors:
@@ -17,30 +27,37 @@ class Colors:
 def color_text(text, color):
     return f"{color}{text}{Colors.END}"
 
-# --- General logging ---
+# =========================================================
+# GENERAL LOGGING
+# =========================================================
 def log_action(action: str):
-    """Append an action with timestamp to the log file using UTF-8."""
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     with open(LOG_FILE, "a", encoding="utf-8") as f:
         f.write(f"[{timestamp}] {action}\n")
 
-# --- Feedings ---
+# =========================================================
+# FEEDINGS
+# =========================================================
 def log_feeding_entry(pet, grams):
     calories = calculate_calories(grams, pet.get("calorie_density", 85))
-    time = datetime.now().strftime("%H:%M")
-    entry = {"grams": grams, "calories": calories, "time": time}
+    time_str = datetime.now().strftime("%H:%M")
+    entry = {"grams": grams, "calories": calories, "time": time_str}
     pet.setdefault("feedings", []).append(entry)
     log_action(f"🐾 Logged feeding for {pet['name']}: {grams}g ({calories} cal)")
     return entry
 
-# --- Medications ---
+# =========================================================
+# MEDICATIONS
+# =========================================================
 def log_medication_entry(pet, med_name, dose):
     entry = log_medication(med_name, dose)
     pet.setdefault("medications", []).append(entry)
     log_action(f"💊 Logged medication for {pet['name']}: {med_name} ({dose})")
     return entry
 
-# --- Weight logging ---
+# =========================================================
+# WEIGHT LOGGING
+# =========================================================
 def log_weight_entry(pet, weight):
     entry = {"date": datetime.now().strftime("%Y-%m-%d"), "weight": weight}
     pet.setdefault("weight_history", []).append(entry)
@@ -48,7 +65,9 @@ def log_weight_entry(pet, weight):
     log_action(f"⚖️ Updated weight for {pet['name']}: {weight} kg")
     return entry
 
-# --- Weight change calculations ---
+# =========================================================
+# WEIGHT CALCULATIONS
+# =========================================================
 def calculate_weight_change(pet):
     history = pet.get("weight_history", [])
     if len(history) < 2:
@@ -70,16 +89,17 @@ def calculate_recent_weight_change(pet, days=7):
     last = recent[-1]["weight"]
     return round(((last - first) / first) * 100, 2)
 
-# --- Daily summary ---
+# =========================================================
+# DAILY SUMMARY
+# =========================================================
 def print_daily_summary(pet):
-    print(f"--- {pet['name']} 🌸 ---")
-    
+    print(f"\n--- {pet['name']} 🌸 ---")
     total_cal = sum(f.get("calories", 0) for f in pet.get("feedings", []))
     target = pet.get("calorie_target", 0)
     print(f"Calories today: {total_cal}/{target} cal")
     if total_cal < target:
         print(color_text("⚠️ Below target! Consider giving more food.", Colors.RED))
-    
+
     meds = pet.get("medications", [])
     if meds:
         print("Medications today:")
@@ -91,71 +111,135 @@ def print_daily_summary(pet):
     weight = pet.get("weight")
     if weight:
         print(f"Weight: ⚖️ {weight} kg")
-        total_change = calculate_weight_change(pet)
-        weekly_change = calculate_recent_weight_change(pet)
-        print(f"Total weight change: {total_change:+.2f}%")
-        print(f"Last 7 days change: {weekly_change:+.2f}%")
+        print(f"Total weight change: {calculate_weight_change(pet):+.2f}%")
+        print(f"Last 7 days change: {calculate_recent_weight_change(pet):+.2f}%")
     else:
-        print(color_text("⚠️ No weight logged today!", Colors.RED))
-    print()
+        print(color_text("⚠️ No weight logged yet!", Colors.RED))
 
-# --- Full weight graph ---
+    # Reminder status
+    reminder_status = "🟢 On" if pet.get("reminder_enabled") else "🔴 Off"
+    print(f"Reminder: {reminder_status}\n")
+
+# =========================================================
+# WEIGHT GRAPH
+# =========================================================
 def plot_weight_graph(pet, width=20):
     history = pet.get("weight_history", [])
     if not history:
         print(color_text("⚠️ No weight history yet!\n", Colors.RED))
         return
     weights = [entry["weight"] for entry in history]
-    max_w = max(weights)
-    min_w = min(weights)
+    max_w, min_w = max(weights), min(weights)
     step = (max_w - min_w) / width if max_w != min_w else 1
-    print(f"📊 Weight History for {pet['name']}")
+    print(f"\n📊 Weight History for {pet['name']}")
     for entry in history:
         bar_len = max(1, int((entry["weight"] - min_w) / step))
-        bar = "▇" * bar_len
+        bar = "▇"*bar_len
         print(f"{entry['date']}: {bar} {entry['weight']} kg")
     print()
 
-# --- Weekly weight trend with colored mini-sparkline ---
+# =========================================================
+# WEEKLY TREND
+# =========================================================
 def plot_weekly_weight_trend(pet, width=30):
     history = pet.get("weight_history", [])
     if not history:
         print(color_text("⚠️ No weight history yet!\n", Colors.RED))
         return
-
     today = datetime.now().date()
     week_ago = today - timedelta(days=6)
     recent = [entry for entry in history if datetime.strptime(entry["date"], "%Y-%m-%d").date() >= week_ago]
     if not recent:
-        print(color_text("⚠️ No weight data for the last 7 days.\n", Colors.RED))
+        print(color_text("⚠️ No weight data for last 7 days.\n", Colors.RED))
         return
-
     print(f"📅 Weekly Weight Trend for {pet['name']}")
-    print(color_text("Legend: 🟢 Up  ➖ Same  🔻 Down  ▇ Weight bar\n", Colors.CYAN))
-
     prev_w = None
     weights = [entry["weight"] for entry in recent]
-    max_w = max(weights)
-    min_w = min(weights)
-    step = (max_w - min_w) / width if max_w != min_w else 1
-
+    max_w, min_w = max(weights), min(weights)
+    step = (max_w - min_w)/width if max_w != min_w else 1
     for entry in recent:
         w = entry["weight"]
-        if prev_w is None:
-            symbol = "➖"
-            color = Colors.YELLOW
-        elif w > prev_w:
-            symbol = "🟢"
-            color = Colors.GREEN
-        elif w < prev_w:
-            symbol = "🔻"
-            color = Colors.RED
-        else:
-            symbol = "➖"
-            color = Colors.YELLOW
-        prev_w = w
-
-        bar_len = max(1, int((w - min_w) / step))
-        bar = color_text("▇" * bar_len, color)
+        symbol = "➖"
+        color = Colors.YELLOW
+        if prev_w is not None:
+            if w > prev_w:
+                symbol = "🟢"
+                color = Colors.GREEN
+            elif w < prev_w:
+                symbol = "🔻"
+                color = Colors.RED
+        bar_len = max(1, int((w-min_w)/step))
+        bar = color_text("▇"*bar_len, color)
         print(f"{symbol} {entry['date']}: {bar} {w} kg")
+        prev_w = w
     print()
+
+# =========================================================
+# REMINDER HELPERS
+# =========================================================
+def toggle_reminder(pet):
+    pet["reminder_enabled"] = not pet.get("reminder_enabled", True)
+    status = "enabled" if pet["reminder_enabled"] else "disabled"
+    log_action(f"🔔 Reminder {status} for {pet['name']}")
+    if pet["reminder_enabled"]:
+        start_feeding_scheduler(pet)
+    print(f"✅ Reminder {status} for {pet['name']}.")
+
+def snooze_reminder(pet, minutes):
+    pet["snooze_until"] = (datetime.now() + timedelta(minutes=minutes)).strftime("%Y-%m-%d %H:%M:%S")
+    log_action(f"😴 Reminder snoozed for {minutes} minutes for {pet['name']}")
+    print(f"✅ Reminder snoozed for {minutes} minutes.")
+
+def set_quiet_hours(pet, start_time, end_time):
+    pet["quiet_hours"] = {"start": start_time, "end": end_time}
+    log_action(f"🛏️ Quiet hours set for {pet['name']}: {start_time} - {end_time}")
+    print(f"✅ Quiet hours set: {start_time} - {end_time}")
+
+# =========================================================
+# FEEDING SCHEDULER
+# =========================================================
+def start_feeding_scheduler(pet):
+    pet_name = pet["name"]
+    if pet_name in _active_schedulers:
+        return
+    feeding_times = pet.get("feeding_schedule", [])
+    if not feeding_times or not pet.get("reminder_enabled", False):
+        return
+    def scheduler_loop():
+        notified_today = set()
+        while True:
+            now = datetime.now()
+            current_time = now.strftime("%H:%M")
+            today_date = now.strftime("%Y-%m-%d")
+
+            # check quiet hours
+            q_start = pet.get("quiet_hours", {}).get("start")
+            q_end = pet.get("quiet_hours", {}).get("end")
+            in_quiet = False
+            if q_start and q_end:
+                if q_start <= current_time <= q_end:
+                    in_quiet = True
+
+            # check snooze
+            snooze_until = pet.get("snooze_until")
+            if snooze_until:
+                snooze_dt = datetime.strptime(snooze_until, "%Y-%m-%d %H:%M:%S")
+                if now < snooze_dt:
+                    in_quiet = True
+
+            for ft in feeding_times:
+                key = f"{today_date}_{ft}"
+                if current_time == ft and key not in notified_today and not in_quiet:
+                    msg = f"Time to feed {pet_name} ({ft})!"
+                    print(f"\n🔔 {msg}\n")
+                    log_action(f"🔔 Feeding reminder triggered for {pet_name} ({ft})")
+                    if notification:
+                        try:
+                            notification.notify(title="🐾 Feeding Reminder", message=msg, timeout=10)
+                        except:
+                            pass
+                    notified_today.add(key)
+            time.sleep(30)
+    thread = threading.Thread(target=scheduler_loop, daemon=True)
+    thread.start()
+    _active_schedulers[pet_name] = thread

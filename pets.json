@@ -1,59 +1,142 @@
 {
   "1": {
     "name": "Arya",
-    "weight": 3.6,
-    "calorie_target": 200,
+    "weight": 3.3,
+    "calorie_target": 205,
     "calorie_density": 85,
-    "feedings": [
+    "feeding_times": [
+      "09:00",
+      "14:00",
+      "21:00"
+    ],
+    "feedings": [],
+    "medications": [],
+    "weight_history": [
       {
-        "grams": 50,
-        "calories": 42.5,
-        "time": "09:00"
+        "date": "2026-02-01",
+        "weight": 4.3
       },
       {
-        "grams": 60,
-        "calories": 51.0,
-        "time": "13:00"
+        "date": "2026-02-10",
+        "weight": 4.2
+      },
+      {
+        "date": "2026-02-17",
+        "weight": 3.3
       }
     ],
+    "feeding_schedule": [
+      "09:00",
+      "14:00",
+      "21:00"
+    ],
+    "reminder_settings": {
+      "enabled": true,
+      "quiet_hours": {
+        "start": "22:00",
+        "end": "06:00"
+      },
+      "per_time_enabled": {
+        "09:00": true,
+        "14:00": true,
+        "21:00": true
+      },
+      "snoozed_until": null
+    },
+    "quiet_hours": {
+      "start": "21:30",
+      "end": "08:30"
+    },
+    "reminder_enabled": true
+  },
+  "2": {
+    "name": "Max",
+    "weight": 18.5,
+    "calorie_target": 950,
+    "calorie_density": 320,
+    "feeding_times": [
+      "07:30",
+      "18:30"
+    ],
+    "feedings": [],
     "medications": [
       {
-        "med_name": "Metacam",
-        "dose": "0.5ml",
-        "time": "08:00"
-      },
-      {
-        "med_name": "Dermotic",
-        "dose": "0.5ml",
-        "time": "20:00"
+        "name": "Joint Supplement",
+        "dosage": "1 tablet",
+        "frequency": "Daily",
+        "last_given": null
       }
     ],
     "weight_history": [
       {
-        "date": "2026-02-15",
-        "weight": 3.3
+        "date": "2026-01-15",
+        "weight": 19.0
       },
       {
-        "date": "2026-02-16",
-        "weight": 3.4
+        "date": "2026-02-10",
+        "weight": 18.5
+      }
+    ],
+    "feeding_schedule": [
+      "07:30",
+      "18:30"
+    ],
+    "reminder_settings": {
+      "enabled": true,
+      "quiet_hours": {
+        "start": "23:00",
+        "end": "07:00"
+      },
+      "per_time_enabled": {
+        "07:30": true,
+        "18:30": true
+      },
+      "snoozed_until": null
+    }
+  },
+  "3": {
+    "name": "Luna",
+    "weight": 4.0,
+    "calorie_target": 220,
+    "calorie_density": 90,
+    "feeding_times": [
+      "08:00",
+      "13:00",
+      "19:00"
+    ],
+    "feedings": [],
+    "medications": [],
+    "weight_history": [
+      {
+        "date": "2026-02-01",
+        "weight": 4.2
+      },
+      {
+        "date": "2026-02-10",
+        "weight": 4.1
       },
       {
         "date": "2026-02-17",
-        "weight": 3.5
-      },
-      {
-        "date": "2026-02-20",
-        "weight": 3.6
+        "weight": 4.0
       }
-    ]
-  },
-  "2": {
-    "name": "Milo",
-    "weight": 4.5,
-    "calorie_target": 250,
-    "calorie_density": 90,
-    "feedings": [],
-    "medications": [],
-    "weight_history": []
+    ],
+    "feeding_schedule": [
+      "08:00",
+      "13:00",
+      "19:00"
+    ],
+    "reminder_settings": {
+      "enabled": false,
+      "quiet_hours": {
+        "start": "21:00",
+        "end": "07:00"
+      },
+      "per_time_enabled": {
+        "08:00": true,
+        "13:00": true,
+        "19:00": true
+      },
+      "snoozed_until": null
+    }
   }
 }
