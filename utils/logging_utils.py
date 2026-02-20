@@ -2,30 +2,29 @@ import json
 import os
 from datetime import datetime, timedelta
 
-# Import your colors module
 from .colors import Colors, color_text
 
-# ✅ Define paths relative to project root
 PETS_FILE = "data/pets.json"
 USER_PREFS_FILE = "data/user_prefs.json"
-LOGS_FILE = "data/logs.json"  # We don't write to this — just preserve it
-ACTION_LOG = "data/action.log"  # Preserved — not modified here
+LOGS_FILE = "data/logs.json"
+ACTION_LOG = "data/action.log"
 
-# Optional: Try to import matplotlib — if not available, handle gracefully
 try:
     import matplotlib.pyplot as plt
     MATPLOTLIB_AVAILABLE = True
 except ImportError:
     MATPLOTLIB_AVAILABLE = False
 
+
 def ensure_data_directory():
-    """Ensure 'data' directory exists. Create it if not."""
+    """Ensure the data directory exists for file storage."""
     if not os.path.exists("data"):
         os.makedirs("data")
         print(color_text("ℹ️  Created 'data' directory for storage.", Colors.CYAN))
 
+
 def load_pets():
-    """Load pet data from JSON file. Return empty dict if file doesn't exist or is corrupt."""
+    """Load pet data from pets.json. Returns empty dict if file doesn't exist or is corrupt."""
     ensure_data_directory()
 
     if not os.path.exists(PETS_FILE):
@@ -33,7 +32,6 @@ def load_pets():
     try:
         with open(PETS_FILE, 'r', encoding='utf-8') as f:
             data = json.load(f)
-            # Ensure all pets have required keys
             for pet_name in data:
                 pet = data[pet_name]
                 if "weight" not in pet:
@@ -55,14 +53,16 @@ def load_pets():
         print(color_text("⚠️  Corrupted pets.json. Starting fresh.", Colors.YELLOW))
         return {}
 
+
 def save_pets(pets):
-    """Save pet data to JSON file."""
+    """Save pet data to pets.json."""
     ensure_data_directory()
     with open(PETS_FILE, 'w', encoding='utf-8') as f:
         json.dump(pets, f, indent=4, ensure_ascii=False)
 
+
 def load_user_prefs():
-    """Load user preferences (e.g., weight unit). Return default if file doesn't exist."""
+    """Load user preferences (e.g., weight unit). Returns default if file missing or corrupt."""
     ensure_data_directory()
     if not os.path.exists(USER_PREFS_FILE):
         return {"unit": "kg"}
@@ -73,14 +73,16 @@ def load_user_prefs():
         print(color_text("⚠️  Corrupted user_prefs.json. Resetting to default.", Colors.YELLOW))
         return {"unit": "kg"}
 
+
 def save_user_prefs(prefs):
-    """Save user preferences to JSON file."""
+    """Save user preferences to user_prefs.json."""
     ensure_data_directory()
     with open(USER_PREFS_FILE, 'w', encoding='utf-8') as f:
         json.dump(prefs, f, indent=4, ensure_ascii=False)
 
+
 def log_feeding_entry(pets, pet_name, grams, calories):
-    """Log a feeding entry for the specified pet."""
+    """Log a feeding entry for a pet."""
     if pet_name not in pets:
         print(color_text("❌ Pet not found!", Colors.RED))
         return
@@ -98,8 +100,9 @@ def log_feeding_entry(pets, pet_name, grams, calories):
     save_pets(pets)
     print(color_text(f"✅ Logged: {grams}g ({calories} kcal) at {now}", Colors.GREEN))
 
+
 def log_weight_entry(pets, pet_name, weight):
-    """Log a weight entry for the specified pet."""
+    """Log a weight entry for a pet."""
     if pet_name not in pets:
         print(color_text("❌ Pet not found!", Colors.RED))
         return
@@ -117,10 +120,29 @@ def log_weight_entry(pets, pet_name, weight):
     save_pets(pets)
     print(color_text(f"✅ Logged weight: {weight} kg on {now}", Colors.GREEN))
 
+
+def format_frequency_display(frequency, interval_hours, dosing_time):
+    """
+    Helper function to generate human-readable frequency display.
+    Returns a string like: "Every 12h at 14:00", "Daily at 08:00", "One-time"
+    """
+    if frequency == "one_time":
+        return "One-time"
+    elif interval_hours is not None:
+        base = f"Every {interval_hours}h"
+        return f"{base} at {dosing_time}" if dosing_time else base
+    else:
+        freq_labels = {
+            "every_day": "Daily",
+            "every_3_days": "Every 3 days",
+            "weekly": "Weekly"
+        }
+        base = freq_labels.get(frequency, frequency.replace("_", " ").title())
+        return f"{base} at {dosing_time}" if dosing_time else base
+
+
 def log_medication_entry(pets, pet_name, medication, dose, notes=""):
-    """
-    Log a medication entry for the specified pet and set its frequency.
-    """
+    """Log a medication entry with scheduling and reminders."""
     if pet_name not in pets:
         print(color_text("❌ Pet not found!", Colors.RED))
         return
@@ -131,30 +153,86 @@ def log_medication_entry(pets, pet_name, medication, dose, notes=""):
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
 
     print("\n📌 How often should this medication be given?")
-    print("  1. Daily")
-    print("  2. Every 3 days")
-    print("  3. Weekly")
-    print("  4. One-time only")
+    print("  1. One-time only")
+    print("  2. Daily (every 24 hours)")
+    print("  3. Every 3 days")
+    print("  4. Weekly")
+    print("  5. Custom interval (e.g., every 8 hours)")
     while True:
-        choice = input("Choose 1-4: ").strip()
+        choice = input("Choose 1-5: ").strip()
         if choice == "1":
-            frequency = "every_day"
-            next_due = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
+            frequency = "one_time"
+            interval_hours = None
+            next_due = None
+            dosing_time = None
             break
         elif choice == "2":
-            frequency = "every_3_days"
-            next_due = (datetime.now() + timedelta(days=3)).strftime("%Y-%m-%d")
+            frequency = "every_day"
+            interval_hours = 24
             break
         elif choice == "3":
-            frequency = "weekly"
-            next_due = (datetime.now() + timedelta(weeks=1)).strftime("%Y-%m-%d")
+            frequency = "every_3_days"
+            interval_hours = 72
             break
         elif choice == "4":
-            frequency = "one_time"
-            next_due = None
+            frequency = "weekly"
+            interval_hours = 168
+            break
+        elif choice == "5":
+            while True:
+                try:
+                    hours = int(input("Enter interval in hours (e.g., 8): ").strip())
+                    if hours <= 0:
+                        print(color_text("❌ Interval must be positive.", Colors.RED))
+                        continue
+                    frequency = "custom"
+                    interval_hours = hours
+                    break
+                except ValueError:
+                    print(color_text("❌ Please enter a valid number of hours.", Colors.RED))
             break
         else:
-            print(color_text("❌ Invalid choice. Choose 1–4.", Colors.RED))
+            print(color_text("❌ Invalid choice. Choose 1–5.", Colors.RED))
+
+    dosing_time = None
+    if frequency != "one_time":
+        print("\n⏰ What time of day should this dose be given? (24-hour format, e.g., 08:00)")
+        while True:
+            time_input = input("Time (HH:MM): ").strip()
+            if len(time_input) == 5 and time_input[2] == ":":
+                try:
+                    h, m = map(int, time_input.split(":"))
+                    if 0 <= h <= 23 and 0 <= m <= 59:
+                        dosing_time = f"{h:02d}:{m:02d}"
+                        break
+                    else:
+                        raise ValueError
+                except ValueError:
+                    print(color_text("❌ Invalid time. Use HH:MM (e.g., 08:30).", Colors.RED))
+            else:
+                print(color_text("❌ Invalid format. Use HH:MM (e.g., 08:30).", Colors.RED))
+
+    if frequency == "one_time":
+        next_due = None
+    elif dosing_time:
+        first_due_str = f"{now.split()[0]} {dosing_time}"
+        first_due = datetime.strptime(first_due_str, "%Y-%m-%d %H:%M")
+        if first_due < datetime.now():
+            first_due += timedelta(days=1)
+        next_due = first_due.strftime("%Y-%m-%d %H:%M")
+    else:
+        if interval_hours:
+            next_due = (datetime.now() + timedelta(hours=interval_hours)).strftime("%Y-%m-%d %H:%M")
+        else:
+            if frequency == "every_day":
+                next_due = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
+            elif frequency == "every_3_days":
+                next_due = (datetime.now() + timedelta(days=3)).strftime("%Y-%m-%d")
+            elif frequency == "weekly":
+                next_due = (datetime.now() + timedelta(weeks=1)).strftime("%Y-%m-%d")
+
+    remind_choice = input("\n🔔 Enable reminder for this medication? (y/N): ").strip().lower()
+    reminder_enabled = remind_choice in ['y', 'yes']
 
     pets[pet_name]["medications"].append({
         "timestamp": now,
@@ -162,7 +240,10 @@ def log_medication_entry(pets, pet_name, medication, dose, notes=""):
         "dose": dose,
         "notes": notes,
         "frequency": frequency,
-        "next_due": next_due
+        "interval_hours": interval_hours,
+        "dosing_time": dosing_time,
+        "next_due": next_due,
+        "reminder_enabled": reminder_enabled
     })
 
     save_pets(pets)
@@ -170,17 +251,23 @@ def log_medication_entry(pets, pet_name, medication, dose, notes=""):
     print(color_text(f"✅ Logged medication: {medication} — {dose}{note_part} at {now}", Colors.GREEN))
     if next_due:
         print(color_text(f"   👉 Next dose due: {next_due}", Colors.CYAN))
+    if reminder_enabled:
+        print(color_text("   👉 🔔 Reminder: ON", Colors.CYAN))
+
 
 def view_upcoming_medications(pets):
     """
-    Display all upcoming medication doses due within the next 7 days.
+    Display ALL upcoming medication doses due within the next 7 days.
+    For recurring meds (e.g., every 24h), generates and shows ALL doses in the window.
     """
     print("\n" + "="*60)
     print(color_text("📅 UPCOMING MEDICATIONS (Next 7 Days)", Colors.BLUE + Colors.BOLD))
     print("="*60)
 
     found = False
-    today = datetime.now().date()
+    total_doses = 0
+    today = datetime.now()
+    end_date = today + timedelta(days=7)
 
     for pet_name, pet in pets.items():
         if not pet.get("medications"):
@@ -188,16 +275,58 @@ def view_upcoming_medications(pets):
 
         for med in pet["medications"]:
             next_due_str = med.get("next_due")
-            freq = med.get("frequency", "one_time")
-
-            if not next_due_str or freq == "one_time":
+            if not next_due_str:
                 continue
 
             try:
-                next_due = datetime.strptime(next_due_str, "%Y-%m-%d").date()
-                if today <= next_due <= today + timedelta(days=7):
-                    found = True
-                    days_ahead = (next_due - today).days
+                if " " in next_due_str:
+                    next_due = datetime.strptime(next_due_str, "%Y-%m-%d %H:%M")
+                else:
+                    next_due = datetime.strptime(next_due_str, "%Y-%m-%d")
+            except ValueError:
+                continue
+
+            if next_due < today:
+                continue
+
+            # Derive interval in hours
+            interval_hours = med.get("interval_hours")
+            if not interval_hours:
+                freq = med.get("frequency")
+                if freq == "every_day":
+                    interval_hours = 24
+                elif freq == "every_3_days":
+                    interval_hours = 72
+                elif freq == "weekly":
+                    interval_hours = 168
+                else:
+                    interval_hours = None
+
+            upcoming_doses = []
+            current_due = next_due
+
+            if interval_hours is None:
+                # One-time or unknown interval
+                if today <= current_due <= end_date:
+                    upcoming_doses.append(current_due)
+            else:
+                # Recurring: generate all doses until end_date
+                while current_due <= end_date:
+                    upcoming_doses.append(current_due)
+                    current_due += timedelta(hours=interval_hours)
+
+            if upcoming_doses:
+                found = True
+                total_doses += len(upcoming_doses)
+
+                freq_display = format_frequency_display(
+                    med.get("frequency"),
+                    med.get("interval_hours"),
+                    med.get("dosing_time")
+                )
+
+                for dose_time in upcoming_doses:
+                    days_ahead = (dose_time.date() - today.date()).days
                     if days_ahead == 0:
                         day_str = "TODAY"
                     elif days_ahead == 1:
@@ -205,32 +334,25 @@ def view_upcoming_medications(pets):
                     else:
                         day_str = f"in {days_ahead} days"
 
-                    freq_labels = {
-                        "every_day": "Daily",
-                        "every_3_days": "Every 3 Days",
-                        "weekly": "Weekly"
-                    }
-                    display_freq = freq_labels.get(freq, freq.title())
-
                     print(color_text(f"  🐾 {pet_name} — {med['medication']}", Colors.GREEN))
                     print(f"     ➤ Dose: {med['dose']}")
-                    print(f"     ➤ Due: {next_due_str} ({day_str}) | {display_freq}")
+                    print(f"     ➤ Due: {dose_time.strftime('%Y-%m-%d %H:%M')} ({day_str}) | {freq_display}")
                     if med.get("notes"):
                         print(f"     ➤ Note: {med['notes']}")
+                    if med.get("reminder_enabled"):
+                        print(f"     ➤ 🔔 Reminder: ON")
                     print()
-            except ValueError:
-                continue
 
     if not found:
         print(color_text("   🎯 No upcoming medications within 7 days.", Colors.YELLOW))
+    else:
+        print(color_text(f"\n✅ Total upcoming doses: {total_doses} in next 7 days", Colors.GREEN))
 
     print("="*60)
     input("Press Enter to return to main menu...")
 
+
 def print_daily_summary(pets):
-    """
-    Print a daily summary for each pet: feeding, weight, medications due today, and schedule.
-    """
     print("\n" + "="*70)
     print(color_text("🌞 DAILY PET SUMMARY", Colors.YELLOW + Colors.BOLD))
     print("="*70)
@@ -281,14 +403,17 @@ def print_daily_summary(pets):
         if "medications" in pet:
             for med in pet["medications"]:
                 next_due = med.get("next_due")
-                freq = med.get("frequency", "")
-                if next_due == today_str and freq != "one_time":
+                if next_due and next_due.startswith(today_str):
                     meds_today.append(med)
 
         if meds_today:
             print(color_text(f"   💊 Medications due TODAY:", Colors.RED))
             for med in meds_today:
-                print(f"      ➤ {med['medication']} — {med['dose']}") 
+                due_time = med.get("dosing_time", "")
+                if due_time:
+                    print(f"      ➤ {med['medication']} — {med['dose']} at {due_time}")
+                else:
+                    print(f"      ➤ {med['medication']} — {med['dose']}")
                 if med.get("notes"):
                     print(f"         📝 {med['notes']}")
         else:
@@ -317,11 +442,8 @@ def print_daily_summary(pets):
     print("="*70)
     input("Press Enter to return to main menu...")
 
+
 def plot_weekly_weight_trend(pets):
-    """
-    Plot a weekly weight trend graph for each pet using matplotlib.
-    Falls back to text-based output if matplotlib is not available.
-    """
     print("\n" + "="*60)
     print(color_text("📈 WEEKLY WEIGHT TREND", Colors.GREEN + Colors.BOLD))
     print("="*60)
@@ -402,10 +524,8 @@ def plot_weekly_weight_trend(pets):
     print("="*60)
     input("Press Enter to return to main menu...")
 
+
 def manage_medications(pets):
-    """
-    Interactive medication manager: view, mark as taken, delete, or edit entries.
-    """
     print("\n" + "="*60)
     print(color_text("💊 MANAGE MEDICATIONS", Colors.MAGENTA + Colors.BOLD))
     print("="*60)
@@ -426,34 +546,42 @@ def manage_medications(pets):
                 "id": len(all_meds) + 1
             })
 
-    if not all_meds:
-        print(color_text("   🚫 No medications logged yet.", Colors.YELLOW))
-        print("="*60)
-        input("Press Enter to return...")
-        return
+    if all_meds:
+        print(f"\n{Colors.UNDERLINE}All Medication Entries:{Colors.RESET}")
+        for item in all_meds:
+            med = item["med"]
+            due = med.get("next_due", "One-time")
+            status = "✅ Taken" if med.get("taken") else "⏳ Due"
+            color = Colors.GREEN if med.get("taken") else Colors.YELLOW
 
-    print(f"\n{Colors.UNDERLINE}All Medication Entries:{Colors.RESET}")
-    for item in all_meds:
-        med = item["med"]
-        due = med["next_due"] or "One-time"
-        status = "✅ Taken" if med.get("taken") else "⏳ Due"
-        color = Colors.GREEN if med.get("taken") else Colors.YELLOW
-        print(f"   [{item['id']}] {item['pet']} — {med['medication']} ({med['dose']})")
-        print(f"      ➤ {due} | {med['frequency']} | {color_text(status, color)}")
-        if med.get("notes"):
-            print(f"      ➤ Note: {med['notes']}")
-        print()
+            freq_display = format_frequency_display(
+                med.get("frequency"),
+                med.get("interval_hours"),
+                med.get("dosing_time")
+            )
+
+            print(f"   [{item['id']}] {item['pet']} — {med['medication']} ({med['dose']})")
+            print(f"      ➤ Due: {due} | {freq_display} | {color_text(status, color)}")
+            if med.get("notes"):
+                print(f"      ➤ Note: {med['notes']}")
+            if med.get("reminder_enabled"):
+                print(f"      ➤ 🔔 Reminder: ON")
+            print()
+    else:
+        print(color_text("   🚫 No medications logged yet.", Colors.YELLOW))
 
     while True:
         print("\n🛠️  Options:")
         print("   1. Mark medication as taken")
         print("   2. Delete medication entry")
         print("   3. Edit notes")
+        print("   4. Add new medication")
         print("   0. Back to main menu")
-        choice = input("Choose an option (0-3): ").strip()
+        choice = input("Choose an option (0-4): ").strip()
 
         if choice == "0":
             break
+
         elif choice == "1":
             try:
                 med_id = int(input("Enter the ID of the medication to mark as taken: ").strip())
@@ -469,13 +597,28 @@ def manage_medications(pets):
                 med["taken"] = True
                 med["taken_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
 
-                freq = med["frequency"]
-                if freq == "every_day":
-                    med["next_due"] = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
-                elif freq == "every_3_days":
-                    med["next_due"] = (datetime.now() + timedelta(days=3)).strftime("%Y-%m-%d")
-                elif freq == "weekly":
-                    med["next_due"] = (datetime.now() + timedelta(weeks=1)).strftime("%Y-%m-%d")
+                if med.get("interval_hours"):
+                    interval = med["interval_hours"]
+                    if med.get("dosing_time"):
+                        now = datetime.now()
+                        next_time_str = med["dosing_time"]
+                        next_date = (now + timedelta(hours=interval)).strftime("%Y-%m-%d")
+                        med["next_due"] = f"{next_date} {next_time_str}"
+                    else:
+                        med["next_due"] = (now + timedelta(hours=interval)).strftime("%Y-%m-%d %H:%M")
+                else:
+                    freq = med.get("frequency", "")
+                    if freq == "every_day":
+                        if med.get("dosing_time"):
+                            now = datetime.now()
+                            next_date = (now + timedelta(days=1)).strftime("%Y-%m-%d")
+                            med["next_due"] = f"{next_date} {med['dosing_time']}"
+                        else:
+                            med["next_due"] = (now + timedelta(days=1)).strftime("%Y-%m-%d")
+                    elif freq == "every_3_days":
+                        med["next_due"] = (datetime.now() + timedelta(days=3)).strftime("%Y-%m-%d")
+                    elif freq == "weekly":
+                        med["next_due"] = (datetime.now() + timedelta(weeks=1)).strftime("%Y-%m-%d")
 
                 save_pets(pets)
                 print(color_text(f"✅ Marked '{med['medication']}' as taken!", Colors.GREEN))
@@ -529,35 +672,158 @@ def manage_medications(pets):
             except (ValueError, IndexError):
                 print(color_text("❌ Invalid input.", Colors.RED))
 
+        elif choice == "4":
+            print("\n" + "="*40)
+            print(color_text("➕ ADD NEW MEDICATION", Colors.CYAN + Colors.BOLD))
+            print("="*40)
+
+            print("Which pet needs a new medication?")
+            pet_names = list(pets.keys())
+            for i, name in enumerate(pet_names, 1):
+                print(f"   {i}. {name}")
+            print("   0. Cancel")
+
+            try:
+                pet_choice = int(input("Choose pet (0 to cancel): ").strip())
+                if pet_choice == 0:
+                    continue
+                if pet_choice < 1 or pet_choice > len(pet_names):
+                    print(color_text("❌ Invalid choice.", Colors.RED))
+                    continue
+                pet_name = pet_names[pet_choice - 1]
+            except ValueError:
+                print(color_text("❌ Invalid input.", Colors.RED))
+                continue
+
+            medication = input("💊 Medication name (e.g., 'Gabapentin'): ").strip()
+            if not medication:
+                print(color_text("❌ Medication name cannot be empty.", Colors.RED))
+                continue
+
+            dose = input("💊 Dose (e.g., '1 tablet', '0.5 mL'): ").strip()
+            if not dose:
+                print(color_text("❌ Dose cannot be empty.", Colors.RED))
+                continue
+
+            notes = input("📝 Optional notes (press Enter to skip): ").strip() or ""
+
+            print("\n📌 How often should this medication be given?")
+            print("   1. One-time only")
+            print("   2. Daily (every 24 hours)")
+            print("   3. Every 3 days")
+            print("   4. Weekly")
+            print("   5. Custom interval (e.g., every 8 hours)")
+            while True:
+                freq_choice = input("Choose 1-5: ").strip()
+                if freq_choice == "1":
+                    frequency = "one_time"
+                    interval_hours = None
+                    next_due = None
+                    dosing_time = None
+                    break
+                elif freq_choice == "2":
+                    frequency = "every_day"
+                    interval_hours = 24
+                    break
+                elif freq_choice == "3":
+                    frequency = "every_3_days"
+                    interval_hours = 72
+                    break
+                elif freq_choice == "4":
+                    frequency = "weekly"
+                    interval_hours = 168
+                    break
+                elif freq_choice == "5":
+                    while True:
+                        try:
+                            hours = int(input("Enter interval in hours (e.g., 8): ").strip())
+                            if hours <= 0:
+                                print(color_text("❌ Interval must be positive.", Colors.RED))
+                                continue
+                            frequency = "custom"
+                            interval_hours = hours
+                            break
+                        except ValueError:
+                            print(color_text("❌ Please enter a valid number of hours.", Colors.RED))
+                    break
+                else:
+                    print(color_text("❌ Invalid choice. Choose 1–5.", Colors.RED))
+
+            dosing_time = None
+            if frequency != "one_time":
+                print("\n⏰ What time of day should this dose be given? (24-hour format, e.g., 08:00)")
+                while True:
+                    time_input = input("Time (HH:MM): ").strip()
+                    if len(time_input) == 5 and time_input[2] == ":":
+                        try:
+                            h, m = map(int, time_input.split(":"))
+                            if 0 <= h <= 23 and 0 <= m <= 59:
+                                dosing_time = f"{h:02d}:{m:02d}"
+                                break
+                            else:
+                                raise ValueError
+                        except ValueError:
+                            print(color_text("❌ Invalid time. Use HH:MM (e.g., 08:30).", Colors.RED))
+                    else:
+                        print(color_text("❌ Invalid format. Use HH:MM (e.g., 08:30).", Colors.RED))
+
+            now = datetime.now()
+            if frequency == "one_time":
+                next_due = None
+            elif dosing_time:
+                first_due_str = f"{now.strftime('%Y-%m-%d')} {dosing_time}"
+                first_due = datetime.strptime(first_due_str, "%Y-%m-%d %H:%M")
+                if first_due < now:
+                    first_due += timedelta(days=1)
+                next_due = first_due.strftime("%Y-%m-%d %H:%M")
+            else:
+                if interval_hours:
+                    next_due = (now + timedelta(hours=interval_hours)).strftime("%Y-%m-%d %H:%M")
+                else:
+                    if frequency == "every_day":
+                        next_due = (now + timedelta(days=1)).strftime("%Y-%m-%d")
+                    elif frequency == "every_3_days":
+                        next_due = (now + timedelta(days=3)).strftime("%Y-%m-%d")
+                    elif frequency == "weekly":
+                        next_due = (now + timedelta(weeks=1)).strftime("%Y-%m-%d")
+
+            remind_choice = input("\n🔔 Enable reminder for this medication? (y/N): ").strip().lower()
+            reminder_enabled = remind_choice in ['y', 'yes']
+
+            timestamp = now.strftime("%Y-%m-%d %H:%M")
+
+            if "medications" not in pets[pet_name]:
+                pets[pet_name]["medications"] = []
+
+            pets[pet_name]["medications"].append({
+                "timestamp": timestamp,
+                "medication": medication,
+                "dose": dose,
+                "notes": notes,
+                "frequency": frequency,
+                "interval_hours": interval_hours,
+                "dosing_time": dosing_time,
+                "next_due": next_due,
+                "reminder_enabled": reminder_enabled
+            })
+
+            save_pets(pets)
+
+            freq_display = format_frequency_display(frequency, interval_hours, dosing_time)
+            note_part = f" | {notes}" if notes else ""
+            print(color_text(f"✅ Added new medication: {medication} — {dose}{note_part}", Colors.GREEN))
+            print(f"   👉 Frequency: {freq_display}")
+            if next_due:
+                print(f"   👉 Next due: {next_due}")
+            if reminder_enabled:
+                print(f"   👉 🔔 Reminder: ON")
+
         else:
-            print(color_text("❌ Invalid option.", Colors.RED))
+            print(color_text("❌ Invalid option. Choose 0–4.", Colors.RED))
 
     print("="*60)
     input("Press Enter to return to main menu...")
 
-def calculate_daily_calories(weight_kg, species, activity_level):
-    if weight_kg <= 0:
-        return None
-
-    rer = 70 * (weight_kg ** 0.75)
-
-    if species.lower() == "dog":
-        activity_multipliers = {
-            "sedentary": 1.2,
-            "normal": 1.6,
-            "active": 2.0,
-            "very_active": 3.0
-        }
-        multiplier = activity_multipliers.get(activity_level.lower(), 1.6)
-    elif species.lower() == "cat":
-        multiplier = 1.2
-        if activity_level.lower() in ["active", "very_active"]:
-            multiplier = 1.5
-    else:
-        return None
-
-    daily_calories = rer * multiplier
-    return round(daily_calories)
 
 def manage_feeding_schedule(pets):
     print("\n" + "="*60)
@@ -732,6 +998,7 @@ def manage_feeding_schedule(pets):
     print("="*60)
     input("Press Enter to return to Settings...")
 
+
 def change_weight_unit():
     print("\n" + "="*60)
     print(color_text("⚖️  CHANGE WEIGHT UNIT", Colors.BLUE + Colors.BOLD))
@@ -791,6 +1058,7 @@ def change_weight_unit():
     print("="*60)
     input("Press Enter to return to main menu...")
 
+
 def delete_all_data():
     print("\n" + "="*60)
     print(color_text("🗑️  DELETE ALL DATA", Colors.RED + Colors.BOLD))
@@ -822,6 +1090,7 @@ def delete_all_data():
     print("="*60)
     input("Press Enter to return to main menu...")
 
+
 def reset_user_prefs():
     print("\n" + "="*60)
     print(color_text("🔧 RESET USER PREFERENCES", Colors.CYAN + Colors.BOLD))
@@ -848,18 +1117,39 @@ def reset_user_prefs():
     print("="*60)
     input("Press Enter to return to main menu...")
 
-# ✅ NEW: Export Functions — v0.7 Step 1 — Updated to use data/pets.json
+
+def calculate_daily_calories(weight_kg, species, activity_level):
+    if weight_kg <= 0:
+        return None
+
+    rer = 70 * (weight_kg ** 0.75)
+
+    if species.lower() == "dog":
+        activity_multipliers = {
+            "sedentary": 1.2,
+            "normal": 1.6,
+            "active": 2.0,
+            "very_active": 3.0
+        }
+        multiplier = activity_multipliers.get(activity_level.lower(), 1.6)
+    elif species.lower() == "cat":
+        multiplier = 1.2
+        if activity_level.lower() in ["active", "very_active"]:
+            multiplier = 1.5
+    else:
+        return None
+
+    daily_calories = rer * multiplier
+    return round(daily_calories)
+
+
 def export_logs_to_csv(pets, filepath="logs_export.csv"):
-    """
-    Export all feeding, medication, and weight logs to a single CSV file.
-    Each row is one log entry with pet name, type, details, and timestamp.
-    """
+    """Export all logs to a CSV file."""
     import csv
 
     rows = []
     headers = ["Pet Name", "Log Type", "Details", "Timestamp", "Additional Info"]
 
-    # Feedings
     for pet_name, pet in pets.items():
         if "feedings" in pet:
             for feed in pet["feedings"]:
@@ -871,7 +1161,6 @@ def export_logs_to_csv(pets, filepath="logs_export.csv"):
                     ""
                 ])
 
-    # Medications
     for pet_name, pet in pets.items():
         if "medications" in pet:
             for med in pet["medications"]:
@@ -885,7 +1174,6 @@ def export_logs_to_csv(pets, filepath="logs_export.csv"):
                     note
                 ])
 
-    # Weights
     for pet_name, pet in pets.items():
         if "weights" in pet:
             for weight_entry in pet["weights"]:
@@ -908,10 +1196,7 @@ def export_logs_to_csv(pets, filepath="logs_export.csv"):
 
 
 def export_logs_to_json(pets, filepath="logs_export.json"):
-    """
-    Export all logs (feedings, medications, weights) as a structured JSON file.
-    Format matches the original logs.json structure, with pet names included.
-    """
+    """Export all logs to a structured JSON file."""
     logs = {
         "feedings": [],
         "medications": [],
@@ -937,8 +1222,11 @@ def export_logs_to_json(pets, filepath="logs_export.json"):
                     "dose": med["dose"],
                     "notes": med.get("notes", ""),
                     "frequency": med.get("frequency", ""),
+                    "interval_hours": med.get("interval_hours", None),
+                    "dosing_time": med.get("dosing_time", ""),
                     "next_due": med.get("next_due", ""),
-                    "timestamp": med["timestamp"]
+                    "timestamp": med["timestamp"],
+                    "reminder_enabled": med.get("reminder_enabled", False)
                 })
 
     for pet_name, pet in pets.items():
