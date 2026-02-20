@@ -36,7 +36,7 @@ Because sometimes love looks like spreadsheets, reminders, and making sure the t
 ## Roadmap
 We’re building PawCare incrementally! You can see the **full interactive project board** here:
 
-[PawCare Development Board](https://github.com/YOURUSERNAME/PawCare/projects/1)
+[PawCare Development Board](https://github.com/users/kurohito/projects/1)
 
 ### Key Milestones
 **v0.4 – Safety & UX Enhancements**
