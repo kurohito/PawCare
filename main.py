@@ -1,5 +1,3 @@
-# main.py
-
 import json
 from utils.logging_utils import (
     log_feeding_entry,
@@ -9,7 +7,7 @@ from utils.logging_utils import (
     plot_weight_graph,
     plot_weekly_weight_trend,
     log_action,
-    calculate_recent_weight_change
+    calculate_recent_weight_change,
 )
 from utils.calorie_calculator import calculate_calories
 from utils.medication import log_medication
@@ -19,8 +17,8 @@ from utils.pet_editor import edit_pet
 class Colors:
     RED = "\033[91m"
     GREEN = "\033[92m"
-    CYAN = "\033[96m"
     YELLOW = "\033[93m"
+    CYAN = "\033[96m"
     END = "\033[0m"
 
 def color_text(text, color):
@@ -37,7 +35,7 @@ try:
 except FileNotFoundError:
     pets = {}
 
-# --- Helper functions ---
+# --- Helper Functions ---
 def save_pets():
     with open(PETS_FILE, "w", encoding="utf-8") as f:
         json.dump(pets, f, indent=2, ensure_ascii=False)
@@ -69,6 +67,28 @@ def find_pet_by_name():
             return pet
     print(color_text("⚠️ Pet not found.", Colors.RED))
     return None
+
+# --- Mini-sparkline generator ---
+def mini_sparkline(pet, width=20):
+    """Return a string with colored sparkline for daily summary."""
+    history = pet.get("weight_history", [])
+    if len(history) < 2:
+        return ""
+    weights = [h["weight"] for h in history[-width:]]
+    spark = ""
+    prev = None
+    for w in weights:
+        if prev is None:
+            color = Colors.YELLOW
+        elif w > prev:
+            color = Colors.GREEN
+        elif w < prev:
+            color = Colors.RED
+        else:
+            color = Colors.YELLOW
+        spark += color_text("▇", color)
+        prev = w
+    return spark
 
 # --- Main loop ---
 def main():
@@ -122,7 +142,7 @@ def main():
         elif choice == "3":
             pet = find_pet_by_name()
             if pet:
-                print()  # newline after immediate warnings
+                print()  # newline after warnings
 
         elif choice == "4":
             pet = find_pet_by_name()
@@ -130,7 +150,7 @@ def main():
                 grams = float(input("Grams fed: "))
                 log_feeding_entry(pet, grams)
                 save_pets()
-                # Below target calories
+                 # Below target calories
                 total_cal = sum(f.get("calories", 0) for f in pet.get("feedings", []))
                 if total_cal < pet.get("calorie_target", 0):
                     print(color_text(f"⚠️ Feeding below daily calorie target! ({total_cal}/{pet['calorie_target']})", Colors.RED))
@@ -162,6 +182,9 @@ def main():
             pet = find_pet_by_name()
             if pet:
                 print_daily_summary(pet)
+                spark = mini_sparkline(pet)
+                if spark:
+                    print(f"📈 Weight trend: {spark}\n")
 
         elif choice == "8":
             pet = find_pet_by_name()
@@ -171,7 +194,7 @@ def main():
         elif choice == "9":
             pet = find_pet_by_name()
             if pet:
-                print(color_text("Legend: 🟢 Up  ➖ Same  🔻 Down  🌸 Weight bar", Colors.CYAN))
+                print(color_text("Legend: 🟢 Up  ➖ Same  🔻 Down  ▇ Weight bar", Colors.CYAN))
                 plot_weekly_weight_trend(pet)
 
         elif choice == "10":
