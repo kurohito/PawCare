@@ -7,6 +7,7 @@ from utils.logging_utils import (
     log_weight_entry,
     print_daily_summary,
     plot_weight_graph,
+    plot_weekly_weight_trend,
     log_action
 )
 from utils.calorie_calculator import calculate_calories
@@ -52,26 +53,28 @@ def find_pet_by_name():
     print("⚠️ Pet not found.")
     return None
 
+def print_menu():
+    """Print ASCII header and menu."""
+    print("\n╔═══════════════════════════════════════════╗")
+    print(" 🌸🐾   P a w C a r e   T r a c k e r 🐾🌸")
+    print("╚═══════════════════════════════════════════╝\n")
+    print("1️⃣ Add Pet")
+    print("2️⃣ Edit Pet")
+    print("3️⃣ Search Pet by Name")
+    print("4️⃣ Log Feeding")
+    print("5️⃣ Log Medication")
+    print("6️⃣ Log Weight")
+    print("7️⃣ Daily Summary")
+    print("8️⃣ Weight Graph")
+    print("9️⃣ Weekly Weight Trend")
+    print("🔟 Delete All Data")
+    print("0️⃣ Exit\n")
+
 # --- Main loop ---
 def main():
     while True:
-        print("""
-╔═══════════════════════════════════════════╗
- 🌸🐾   P a w C a r e   T r a c k e r 🐾🌸
-╚═══════════════════════════════════════════╝
-
-1️⃣  Add Pet
-2️⃣  Edit Pet
-3️⃣  Search Pet by Name
-4️⃣  Log Feeding 🍽
-5️⃣  Log Medication 💊
-6️⃣  Log Weight ⚖️
-7️⃣  Daily Summary 📊
-8️⃣  Weight Graph 📈
-9️⃣  Delete All Data 🗑️
-0️⃣  Exit 🚪
-""")
-        choice = input("✨ Choose an option: ").strip()
+        print_menu()
+        choice = input("Choose an option: ").strip()
 
         if choice == "1":
             name = input("Pet name: ").strip()
@@ -79,7 +82,6 @@ def main():
             cal_target = int(input("Daily calorie target: "))
             cal_density = int(input("Food calorie density per 100g: "))
 
-            # Generate next pet ID safely
             pet_id = str(max([int(k) for k in pets.keys()] + [0]) + 1)
 
             pets[pet_id] = {
@@ -145,6 +147,12 @@ def main():
                 plot_weight_graph(pet)
 
         elif choice == "9":
+            pet = find_pet_by_name()
+            if pet:
+                print("\n")
+                plot_weekly_weight_trend(pet)
+
+        elif choice == "🔟" or choice == "10":
             if confirm_action("⚠️ Are you sure you want to DELETE ALL DATA? This cannot be undone."):
                 if confirm_action("❗ Please confirm AGAIN to permanently delete all data."):
                     pets.clear()
