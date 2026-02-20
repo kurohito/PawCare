@@ -8,8 +8,8 @@ from utils.logging_utils import (
     print_daily_summary,
     plot_weight_graph,
     plot_weekly_weight_trend,
-    calculate_weight_change,
-    log_action
+    log_action,
+    calculate_recent_weight_change
 )
 from utils.calorie_calculator import calculate_calories
 from utils.medication import log_medication
@@ -19,19 +19,22 @@ PETS_FILE = "pets.json"
 
 # --- Load pets ---
 try:
-    with open(PETS_FILE, "r", encoding="utf-8") as f:
+    with open(PETS_FILE, "r") as f:
         pets = json.load(f)
         if isinstance(pets, list):
+            # Convert old list format to dict with string keys
             pets = {str(i+1): pet for i, pet in enumerate(pets)}
 except FileNotFoundError:
     pets = {}
 
 # --- Helper functions ---
+
 def save_pets():
     with open(PETS_FILE, "w", encoding="utf-8") as f:
         json.dump(pets, f, indent=2, ensure_ascii=False)
 
 def confirm_action(message):
+    """Ask user to confirm critical action."""
     while True:
         response = input(f"{message} (yes/no): ").strip().lower()
         if response in ["yes", "y"]:
@@ -43,10 +46,19 @@ def confirm_action(message):
             print("Please type 'yes' or 'no'.")
 
 def find_pet_by_name():
+    """Search a pet by name and return the pet object."""
     name = input("Enter pet name to search: ").strip()
     for pet in pets.values():
         if pet["name"].lower() == name.lower():
             print(f"✅ Found: {pet['name']}")
+            # Check for warnings immediately
+            total_cal = sum(f.get("calories", 0) for f in pet.get("feedings", []))
+            target = pet.get("calorie_target", 0)
+            if total_cal < target:
+                print(f"⚠️ {pet['name']} calories below target today: {total_cal}/{target}")
+            weekly_change = calculate_recent_weight_change(pet)
+            if abs(weekly_change) >= 5:
+                print(f"⚠️ Rapid weight change detected in last 7 days: {weekly_change:+.1f}%")
             return pet
     print("⚠️ Pet not found.")
     return None
@@ -79,6 +91,7 @@ def main():
             cal_target = int(input("Daily calorie target: "))
             cal_density = int(input("Food calorie density per 100g: "))
 
+            # Generate next pet ID safely
             pet_id = str(max([int(k) for k in pets.keys()] + [0]) + 1)
 
             pets[pet_id] = {
@@ -103,8 +116,9 @@ def main():
                 print(f"✅ {pet['name']} updated.\n")
 
         elif choice == "3":
-            find_pet_by_name()
-            print()
+            pet = find_pet_by_name()
+            if pet:
+                print()  # newline after immediate warnings
 
         elif choice == "4":
             pet = find_pet_by_name()
@@ -131,10 +145,11 @@ def main():
                 if confirm_action(f"⚖️ Log new weight {weight}kg for {pet['name']}?"):
                     log_weight_entry(pet, weight)
                     save_pets()
-                    print(f"✅ Weight logged for {pet['name']}.")
-                    change = calculate_weight_change(pet)
-                    if change is not None:
-                        print(f"📈 Weight change since last log: {change:.1f}%\n")
+                    print(f"✅ Weight logged for {pet['name']}.\n")
+                    # Show warnings immediately
+                    weekly_change = calculate_recent_weight_change(pet)
+                    if abs(weekly_change) >= 5:
+                        print(f"⚠️ Rapid weight change detected in last 7 days: {weekly_change:+.1f}%\n")
 
         elif choice == "7":
             pet = find_pet_by_name()
@@ -151,7 +166,7 @@ def main():
             if pet:
                 plot_weekly_weight_trend(pet)
 
-        elif choice == "🔟" or choice == "10":
+        elif choice == "10":
             if confirm_action("⚠️ Are you sure you want to DELETE ALL DATA? This cannot be undone."):
                 if confirm_action("❗ Please confirm AGAIN to permanently delete all data."):
                     pets.clear()
