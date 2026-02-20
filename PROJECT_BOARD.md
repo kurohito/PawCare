@@ -2,12 +2,12 @@
 
 ## v0.4 – Safety & UX Enhancements
 - [x] Add pet editing (name, weight, calorie targets) 🐾 **[Medium]**
-- [ ] Search pet by name 🔍 **[Medium]**
-- [ ] Confirmation messages for critical actions ⚠️ **[High]**
-- [ ] Emoji & ASCII menu improvements 🌸 **[Low]**
+- [X] Search pet by name 🔍 **[Medium]**
+- [X] Confirmation messages for critical actions ⚠️ **[High]**
+- [X] Emoji & ASCII menu improvements 🌸 **[Low]**
 
 ## v0.5 – Health & Weight Tracking
-- [ ] Weekly weight trend ASCII graphs 📊 **[High]**
+- [X] Weekly weight trend ASCII graphs 📊 **[High]**
 - [ ] % weight change calculations 📈 **[High]**
 - [ ] Flag below target calories / rapid weight change ⚠️ **[High]**
 - [ ] Mini-sparkline graphs in daily summary 🌸 **[Medium]**
