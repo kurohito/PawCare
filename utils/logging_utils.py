@@ -5,8 +5,11 @@ from datetime import datetime, timedelta
 # Import your colors module
 from .colors import Colors, color_text
 
-PETS_FILE = "pets.json"
-USER_PREFS_FILE = "user_prefs.json"
+# ✅ Define paths relative to project root
+PETS_FILE = "data/pets.json"
+USER_PREFS_FILE = "data/user_prefs.json"
+LOGS_FILE = "data/logs.json"  # We don't write to this — just preserve it
+ACTION_LOG = "data/action.log"  # Preserved — not modified here
 
 # Optional: Try to import matplotlib — if not available, handle gracefully
 try:
@@ -15,14 +18,22 @@ try:
 except ImportError:
     MATPLOTLIB_AVAILABLE = False
 
+def ensure_data_directory():
+    """Ensure 'data' directory exists. Create it if not."""
+    if not os.path.exists("data"):
+        os.makedirs("data")
+        print(color_text("ℹ️  Created 'data' directory for storage.", Colors.CYAN))
+
 def load_pets():
     """Load pet data from JSON file. Return empty dict if file doesn't exist or is corrupt."""
+    ensure_data_directory()
+
     if not os.path.exists(PETS_FILE):
         return {}
     try:
         with open(PETS_FILE, 'r', encoding='utf-8') as f:
             data = json.load(f)
-            # ✅ Ensure all pets have required keys
+            # Ensure all pets have required keys
             for pet_name in data:
                 pet = data[pet_name]
                 if "weight" not in pet:
@@ -38,7 +49,7 @@ def load_pets():
                 if "feeding_reminders" not in pet:
                     pet["feeding_reminders"] = False
                 if "weights" not in pet:
-                    pet["weights"] = []  # ✅ Ensure weights list exists
+                    pet["weights"] = []
             return data
     except (json.JSONDecodeError, FileNotFoundError):
         print(color_text("⚠️  Corrupted pets.json. Starting fresh.", Colors.YELLOW))
@@ -46,11 +57,13 @@ def load_pets():
 
 def save_pets(pets):
     """Save pet data to JSON file."""
+    ensure_data_directory()
     with open(PETS_FILE, 'w', encoding='utf-8') as f:
         json.dump(pets, f, indent=4, ensure_ascii=False)
 
 def load_user_prefs():
     """Load user preferences (e.g., weight unit). Return default if file doesn't exist."""
+    ensure_data_directory()
     if not os.path.exists(USER_PREFS_FILE):
         return {"unit": "kg"}
     try:
@@ -62,6 +75,7 @@ def load_user_prefs():
 
 def save_user_prefs(prefs):
     """Save user preferences to JSON file."""
+    ensure_data_directory()
     with open(USER_PREFS_FILE, 'w', encoding='utf-8') as f:
         json.dump(prefs, f, indent=4, ensure_ascii=False)
 
@@ -106,13 +120,6 @@ def log_weight_entry(pets, pet_name, weight):
 def log_medication_entry(pets, pet_name, medication, dose, notes=""):
     """
     Log a medication entry for the specified pet and set its frequency.
-    
-    Args:
-        pets (dict): Dictionary of pet data
-        pet_name (str): Name of the pet
-        medication (str): Name of the medication (e.g., "Flea Treatment")
-        dose (str): Dose administered (e.g., "1 tablet", "0.5 mL")
-        notes (str): Optional additional notes
     """
     if pet_name not in pets:
         print(color_text("❌ Pet not found!", Colors.RED))
@@ -123,7 +130,6 @@ def log_medication_entry(pets, pet_name, medication, dose, notes=""):
 
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
 
-    # ✅ Ask user for frequency
     print("\n📌 How often should this medication be given?")
     print("  1. Daily")
     print("  2. Every 3 days")
@@ -145,12 +151,11 @@ def log_medication_entry(pets, pet_name, medication, dose, notes=""):
             break
         elif choice == "4":
             frequency = "one_time"
-            next_due = None  # No next due
+            next_due = None
             break
         else:
             print(color_text("❌ Invalid choice. Choose 1–4.", Colors.RED))
 
-    # ✅ Add entry with metadata
     pets[pet_name]["medications"].append({
         "timestamp": now,
         "medication": medication,
@@ -169,7 +174,6 @@ def log_medication_entry(pets, pet_name, medication, dose, notes=""):
 def view_upcoming_medications(pets):
     """
     Display all upcoming medication doses due within the next 7 days.
-    Shows pet name, medication name, next due date, and frequency.
     """
     print("\n" + "="*60)
     print(color_text("📅 UPCOMING MEDICATIONS (Next 7 Days)", Colors.BLUE + Colors.BOLD))
@@ -201,7 +205,6 @@ def view_upcoming_medications(pets):
                     else:
                         day_str = f"in {days_ahead} days"
 
-                    # Format frequency nicely
                     freq_labels = {
                         "every_day": "Daily",
                         "every_3_days": "Every 3 Days",
@@ -216,7 +219,7 @@ def view_upcoming_medications(pets):
                         print(f"     ➤ Note: {med['notes']}")
                     print()
             except ValueError:
-                continue  # Skip malformed dates
+                continue
 
     if not found:
         print(color_text("   🎯 No upcoming medications within 7 days.", Colors.YELLOW))
@@ -241,7 +244,6 @@ def print_daily_summary(pets):
     today_str = datetime.now().strftime("%Y-%m-%d")
     today_time = datetime.now().strftime("%H:%M")
 
-    # Load user preferences
     prefs = load_user_prefs()
     unit = prefs.get("unit", "kg")
     unit_symbol = "kg" if unit == "kg" else "lb"
@@ -250,7 +252,6 @@ def print_daily_summary(pets):
         print(f"\n{Colors.BOLD}{pet_name.upper()}{Colors.RESET}")
         print("-" * 50)
 
-        # 🍽️ Feeding summary
         feedings_today = []
         if "feedings" in pet:
             feedings_today = [
@@ -268,16 +269,14 @@ def print_daily_summary(pets):
         else:
             print(color_text("   🍽️  No feedings logged today.", Colors.YELLOW))
 
-        # ⚖️ Weight summary — CONVERT based on unit
         if pet["weight"] is not None:
             current_weight = pet["weight"]
             if unit == "lb":
-                current_weight = round(current_weight * 2.20462, 2)  # kg → lb
+                current_weight = round(current_weight * 2.20462, 2)
             print(color_text(f"   ⚖️  Current weight: {current_weight} {unit_symbol}", Colors.CYAN))
         else:
             print(color_text("   ⚖️  Weight not logged yet.", Colors.YELLOW))
 
-        # 💊 Medications due today
         meds_today = []
         if "medications" in pet:
             for med in pet["medications"]:
@@ -295,7 +294,6 @@ def print_daily_summary(pets):
         else:
             print(color_text("   💊 No medications due today.", Colors.YELLOW))
 
-        # 🕒 Feeding schedule
         schedule = pet.get("feeding_schedule", [])
         reminders = pet.get("feeding_reminders", False)
         if schedule:
@@ -307,7 +305,6 @@ def print_daily_summary(pets):
         else:
             print(color_text("   🕒 No feeding schedule set.", Colors.YELLOW))
 
-        # 🎯 Target calories (if set)
         target_cal = pet.get("target_daily_calories")
         if target_cal is not None:
             total_today = sum(f["calories"] for f in feedings_today)
@@ -335,7 +332,6 @@ def plot_weekly_weight_trend(pets):
         input("Press Enter to return...")
         return
 
-    # Load user preferences
     prefs = load_user_prefs()
     unit = prefs.get("unit", "kg")
     unit_symbol = "kg" if unit == "kg" else "lb"
@@ -353,10 +349,9 @@ def plot_weekly_weight_trend(pets):
                 print(f"   🐾 {pet_name}: No weight data logged.")
                 continue
 
-            # Sort by date (latest first)
             weights.sort(key=lambda x: x["date"], reverse=True)
-            latest_7 = weights[:7]  # Top 7 entries
-            latest_7.reverse()      # Now oldest to newest
+            latest_7 = weights[:7]
+            latest_7.reverse()
 
             print(f"\n   🐾 {pet_name}:")
             for entry in latest_7:
@@ -370,7 +365,6 @@ def plot_weekly_weight_trend(pets):
         input("Press Enter to return...")
         return
 
-    # ✅ Matplotlib IS available — create plot
     fig, ax = plt.subplots(figsize=(10, 6))
 
     colors = ['tab:blue', 'tab:orange', 'tab:green', 'tab:red', 'tab:purple', 'tab:brown', 'tab:pink']
@@ -381,37 +375,28 @@ def plot_weekly_weight_trend(pets):
         if not weights:
             continue
 
-        # Sort by date (oldest first)
         weights.sort(key=lambda x: x["date"])
         dates = [datetime.strptime(entry["date"], "%Y-%m-%d") for entry in weights]
         values = [entry["weight"] for entry in weights]
 
-        # Convert to target unit
         if unit == "lb":
             values = [round(w * 2.20462, 2) for w in values]
 
-        # Use consistent color per pet
         color = colors[idx % len(colors)]
         color_map[pet_name] = color
 
         ax.plot(dates, values, marker='o', label=pet_name, color=color, linewidth=2, markersize=6)
 
-    # Customize plot
     ax.set_title(f"🐾 Weekly Weight Trend ({unit_symbol})", fontsize=16, fontweight='bold')
     ax.set_xlabel("Date", fontsize=12)
     ax.set_ylabel(f"Weight ({unit_symbol})", fontsize=12)
     ax.grid(True, linestyle='--', alpha=0.7)
     ax.legend(title="Pets", bbox_to_anchor=(1.05, 1), loc='upper left')
-
-    # Rotate x-axis labels
     plt.xticks(rotation=45)
     plt.tight_layout()
 
-    # Save to file
     plt.savefig("weekly_weight_trend.png", dpi=150, bbox_inches='tight')
     print(color_text(f"✅ Chart saved as 'weekly_weight_trend.png' ({unit_symbol})", Colors.CYAN))
-
-    # Show plot
     plt.show()
 
     print("="*60)
@@ -431,7 +416,6 @@ def manage_medications(pets):
         input("Press Enter to return...")
         return
 
-    # Show all meds across all pets
     all_meds = []
     for pet_name, pet in pets.items():
         for idx, med in enumerate(pet["medications"]):
@@ -470,8 +454,7 @@ def manage_medications(pets):
 
         if choice == "0":
             break
-
-        elif choice == "1":  # Mark as taken
+        elif choice == "1":
             try:
                 med_id = int(input("Enter the ID of the medication to mark as taken: ").strip())
                 target = next((item for item in all_meds if item["id"] == med_id), None)
@@ -483,11 +466,9 @@ def manage_medications(pets):
                 med_idx = target["index"]
                 med = pets[pet_name]["medications"][med_idx]
 
-                # Mark as taken
                 med["taken"] = True
                 med["taken_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
 
-                # Auto-schedule next dose if recurring
                 freq = med["frequency"]
                 if freq == "every_day":
                     med["next_due"] = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
@@ -495,7 +476,6 @@ def manage_medications(pets):
                     med["next_due"] = (datetime.now() + timedelta(days=3)).strftime("%Y-%m-%d")
                 elif freq == "weekly":
                     med["next_due"] = (datetime.now() + timedelta(weeks=1)).strftime("%Y-%m-%d")
-                # one_time: leave next_due as None
 
                 save_pets(pets)
                 print(color_text(f"✅ Marked '{med['medication']}' as taken!", Colors.GREEN))
@@ -505,7 +485,7 @@ def manage_medications(pets):
             except (ValueError, IndexError):
                 print(color_text("❌ Invalid input.", Colors.RED))
 
-        elif choice == "2":  # Delete
+        elif choice == "2":
             try:
                 med_id = int(input("Enter the ID of the medication to delete: ").strip())
                 target = next((item for item in all_meds if item["id"] == med_id), None)
@@ -515,7 +495,6 @@ def manage_medications(pets):
 
                 pet_name = target["pet"]
                 med_idx = target["index"]
-
                 med_name = pets[pet_name]["medications"][med_idx]["medication"]
                 confirm = input(f"⚠️  Delete '{med_name}'? (y/N): ").strip().lower()
                 if confirm == "y":
@@ -528,7 +507,7 @@ def manage_medications(pets):
             except (ValueError, IndexError):
                 print(color_text("❌ Invalid input.", Colors.RED))
 
-        elif choice == "3":  # Edit notes
+        elif choice == "3":
             try:
                 med_id = int(input("Enter the ID of the medication to edit: ").strip())
                 target = next((item for item in all_meds if item["id"] == med_id), None)
@@ -557,39 +536,9 @@ def manage_medications(pets):
     input("Press Enter to return to main menu...")
 
 def calculate_daily_calories(weight_kg, species, activity_level):
-    """
-    Calculate daily caloric needs using NRC 2006 formula:
-    
-    For Dogs:
-        Resting Energy Requirement (RER) = 70 × (weight_kg)^0.75
-        Daily Calories = RER × Activity Multiplier
-        
-        Activity Multipliers (NRC 2006):
-          Sedentary     : 1.2
-          Normal        : 1.6
-          Active        : 2.0
-          Very Active   : 3.0
-          Pregnant      : 2.0–3.0 (use Normal for simplicity)
-          Nursing       : 2.0–4.0 (use Very Active)
-          
-    For Cats:
-        RER = 70 × (weight_kg)^0.75
-        Daily Calories = RER × 1.2 (most cats are sedentary indoors) — ASPCA recommends 20–30 kcal/kg/day for adults
-
-    Waltham and Veterinary Teaching Hospitals validate these multipliers.
-
-    Args:
-        weight_kg (float): Pet's current weight in kg
-        species (str): "dog" or "cat"
-        activity_level (str): "sedentary", "normal", "active", "very_active"
-
-    Returns:
-        float: Daily calories in kcal
-    """
     if weight_kg <= 0:
         return None
 
-    # NRC RER formula
     rer = 70 * (weight_kg ** 0.75)
 
     if species.lower() == "dog":
@@ -601,10 +550,8 @@ def calculate_daily_calories(weight_kg, species, activity_level):
         }
         multiplier = activity_multipliers.get(activity_level.lower(), 1.6)
     elif species.lower() == "cat":
-        # Cats: ASPCA recommends 20–30 kcal/kg/day; NRC-based RER × 1.2 is standard for indoor cats
-        multiplier = 1.2  # Most indoor cats are sedentary
-        # Override with more active if specified
-        if activity_level.lower() == "active" or activity_level.lower() == "very_active":
+        multiplier = 1.2
+        if activity_level.lower() in ["active", "very_active"]:
             multiplier = 1.5
     else:
         return None
@@ -613,15 +560,6 @@ def calculate_daily_calories(weight_kg, species, activity_level):
     return round(daily_calories)
 
 def manage_feeding_schedule(pets):
-    """
-    Comprehensive feeding schedule setup:
-    - Ask for number of meals per day
-    - Ask for activity level
-    - Auto-calculate target daily calories (NRC 2006)
-    - Set feeding times (HH:MM)
-    - Toggle reminders ON/OFF
-    - Save to pets.json
-    """
     print("\n" + "="*60)
     print(color_text("🍽️  SET FEEDING SCHEDULE (NRC 2006 VET-GRADE)", Colors.MAGENTA + Colors.BOLD))
     print("="*60)
@@ -666,7 +604,6 @@ def manage_feeding_schedule(pets):
     else:
         print("   🎯 Target calories: Not set")
 
-    # ✅ STEP 1: Ask for species
     species = None
     while not species:
         species_input = input("\n🐾 What is the species of this pet? (dog/cat): ").strip().lower()
@@ -675,7 +612,6 @@ def manage_feeding_schedule(pets):
         else:
             print(color_text("❌ Please enter 'dog' or 'cat'.", Colors.RED))
 
-    # ✅ STEP 2: Ask for weight (if not set)
     if pet["weight"] is None:
         while True:
             try:
@@ -691,7 +627,6 @@ def manage_feeding_schedule(pets):
 
     weight_kg = pet["weight"]
 
-    # ✅ STEP 3: Ask for activity level
     activity_levels = {
         "1": "sedentary",
         "2": "normal",
@@ -712,7 +647,6 @@ def manage_feeding_schedule(pets):
         else:
             print(color_text("❌ Invalid choice. Choose 1–4.", Colors.RED))
 
-    # ✅ STEP 4: Calculate target calories using NRC 2006
     target_cal = calculate_daily_calories(weight_kg, species, activity_level)
     if target_cal is None:
         print(color_text("❌ Could not calculate calories. Please ensure weight and species are valid.", Colors.RED))
@@ -722,7 +656,6 @@ def manage_feeding_schedule(pets):
     print(f"   🐾 {species.capitalize()} ({weight_kg} kg) — {activity_level.title()} activity")
     print(f"   🎯 Recommended daily calories: {target_cal} kcal")
 
-    # ✅ STEP 5: Ask for number of meals
     while True:
         try:
             meal_count = int(input("\n🍽️  How many meals per day? (1–6): ").strip())
@@ -733,15 +666,12 @@ def manage_feeding_schedule(pets):
         except ValueError:
             print(color_text("❌ Invalid input.", Colors.RED))
 
-    # ✅ STEP 6: Set feeding times (evenly spaced)
     schedule = []
     print(f"\n⏰ Set {meal_count} feeding times (24h format, HH:MM). Times will be evenly spaced.")
 
     for i in range(meal_count):
-        # Evenly spaced: e.g., 2 meals → 8:00, 20:00; 3 meals → 6:00, 14:00, 22:00
         hours_between = 24 / meal_count
         hour = int(i * hours_between)
-        minute = 0
         time_str = f"{hour:02d}:00"
         while True:
             time_input = input(f"   Meal {i+1} — Enter time (HH:MM) [default: {time_str}]: ").strip()
@@ -764,9 +694,8 @@ def manage_feeding_schedule(pets):
             else:
                 print(color_text("   ❌ Invalid format. Use HH:MM (e.g., 08:30).", Colors.RED))
 
-    schedule.sort()  # Ensure chronological order
+    schedule.sort()
 
-    # ✅ STEP 7: Toggle reminders
     while True:
         remind_choice = input("\n🔔 Enable feeding reminders? (y/N): ").strip().lower()
         if remind_choice in ['y', 'yes']:
@@ -778,7 +707,6 @@ def manage_feeding_schedule(pets):
         else:
             print(color_text("❌ Please answer 'y' or 'n'.", Colors.RED))
 
-    # ✅ STEP 8: Confirm and save
     print("\n" + "="*60)
     print(color_text("✅ CONFIRMATION", Colors.GREEN))
     print("="*60)
@@ -805,10 +733,6 @@ def manage_feeding_schedule(pets):
     input("Press Enter to return to Settings...")
 
 def change_weight_unit():
-    """
-    Allow user to switch between kg and lbs for all weight displays and entries.
-    Converts all existing weight values to the new unit.
-    """
     print("\n" + "="*60)
     print(color_text("⚖️  CHANGE WEIGHT UNIT", Colors.BLUE + Colors.BOLD))
     print("="*60)
@@ -838,12 +762,10 @@ def change_weight_unit():
         input("Press Enter to return...")
         return
 
-    # ✅ Load pets and convert all weights
     pets = load_pets()
     converted_count = 0
 
     for pet_name, pet in pets.items():
-        # Convert current weight (if exists)
         if pet["weight"] is not None:
             if current_unit == "kg" and new_unit == "lb":
                 pet["weight"] = round(pet["weight"] * 2.20462, 2)
@@ -851,7 +773,6 @@ def change_weight_unit():
                 pet["weight"] = round(pet["weight"] / 2.20462, 2)
             converted_count += 1
 
-        # Convert all historical weight entries
         if "weights" in pet:
             for entry in pet["weights"]:
                 if current_unit == "kg" and new_unit == "lb":
@@ -860,7 +781,6 @@ def change_weight_unit():
                     entry["weight"] = round(entry["weight"] / 2.20462, 2)
                 converted_count += 1
 
-    # Save updated pets and prefs
     save_pets(pets)
     prefs["unit"] = new_unit
     save_user_prefs(prefs)
@@ -872,18 +792,13 @@ def change_weight_unit():
     input("Press Enter to return to main menu...")
 
 def delete_all_data():
-    """
-    Clears ALL pet data from pets.json without deleting the file.
-    Preserves file existence to avoid "file not found" errors on restart.
-    Requires two confirmations for safety.
-    """
     print("\n" + "="*60)
     print(color_text("🗑️  DELETE ALL DATA", Colors.RED + Colors.BOLD))
     print("="*60)
 
     print(color_text("⚠️  THIS ACTION IS IRREVERSIBLE!", Colors.RED))
     print("All pet records, feedings, weights, medications, and logs will be permanently erased.")
-    print("The file 'pets.json' will remain but will be empty.")
+    print("The file 'data/pets.json' will remain but will be empty.")
 
     confirm1 = input("\nAre you absolutely sure? Type 'DELETE ALL DATA' to confirm: ").strip()
 
@@ -901,19 +816,13 @@ def delete_all_data():
         input("Press Enter to return...")
         return
 
-    # ✅ Overwrite pets.json with empty dictionary — file remains
-    save_pets({})  # This writes "{}" to the file
-
-    print(color_text("✅ ALL PET DATA HAS BEEN ERASED. File 'pets.json' preserved as empty.", Colors.GREEN))
+    save_pets({})
+    print(color_text("✅ ALL PET DATA HAS BEEN ERASED. File 'data/pets.json' preserved as empty.", Colors.GREEN))
     print("You can now start fresh with a clean slate.")
     print("="*60)
     input("Press Enter to return to main menu...")
 
 def reset_user_prefs():
-    """
-    Deletes user_prefs.json, resetting weight unit to 'kg' and clearing custom preferences.
-    Does NOT delete any pet data.
-    """
     print("\n" + "="*60)
     print(color_text("🔧 RESET USER PREFERENCES", Colors.CYAN + Colors.BOLD))
     print("="*60)
@@ -938,3 +847,112 @@ def reset_user_prefs():
     print("Your pet data is safe and unchanged.")
     print("="*60)
     input("Press Enter to return to main menu...")
+
+# ✅ NEW: Export Functions — v0.7 Step 1 — Updated to use data/pets.json
+def export_logs_to_csv(pets, filepath="logs_export.csv"):
+    """
+    Export all feeding, medication, and weight logs to a single CSV file.
+    Each row is one log entry with pet name, type, details, and timestamp.
+    """
+    import csv
+
+    rows = []
+    headers = ["Pet Name", "Log Type", "Details", "Timestamp", "Additional Info"]
+
+    # Feedings
+    for pet_name, pet in pets.items():
+        if "feedings" in pet:
+            for feed in pet["feedings"]:
+                rows.append([
+                    pet_name,
+                    "Feeding",
+                    f"{feed['grams']}g ({feed['calories']} kcal)",
+                    feed["timestamp"],
+                    ""
+                ])
+
+    # Medications
+    for pet_name, pet in pets.items():
+        if "medications" in pet:
+            for med in pet["medications"]:
+                info = f"{med['medication']} — {med['dose']}"
+                note = med.get("notes", "")
+                rows.append([
+                    pet_name,
+                    "Medication",
+                    info,
+                    med["timestamp"],
+                    note
+                ])
+
+    # Weights
+    for pet_name, pet in pets.items():
+        if "weights" in pet:
+            for weight_entry in pet["weights"]:
+                rows.append([
+                    pet_name,
+                    "Weight",
+                    f"{weight_entry['weight']} kg",
+                    weight_entry["date"],
+                    ""
+                ])
+
+    try:
+        with open(filepath, 'w', newline='', encoding='utf-8') as f:
+            writer = csv.writer(f)
+            writer.writerow(headers)
+            writer.writerows(rows)
+        print(Colors.GREEN + f"✅ Logs exported successfully to: {filepath}" + Colors.RESET)
+    except Exception as e:
+        print(Colors.RED + f"❌ Failed to export CSV: {e}" + Colors.RESET)
+
+
+def export_logs_to_json(pets, filepath="logs_export.json"):
+    """
+    Export all logs (feedings, medications, weights) as a structured JSON file.
+    Format matches the original logs.json structure, with pet names included.
+    """
+    logs = {
+        "feedings": [],
+        "medications": [],
+        "weights": []
+    }
+
+    for pet_name, pet in pets.items():
+        if "feedings" in pet:
+            for feed in pet["feedings"]:
+                logs["feedings"].append({
+                    "pet": pet_name,
+                    "grams": feed["grams"],
+                    "calories": feed["calories"],
+                    "timestamp": feed["timestamp"]
+                })
+
+    for pet_name, pet in pets.items():
+        if "medications" in pet:
+            for med in pet["medications"]:
+                logs["medications"].append({
+                    "pet": pet_name,
+                    "medication": med["medication"],
+                    "dose": med["dose"],
+                    "notes": med.get("notes", ""),
+                    "frequency": med.get("frequency", ""),
+                    "next_due": med.get("next_due", ""),
+                    "timestamp": med["timestamp"]
+                })
+
+    for pet_name, pet in pets.items():
+        if "weights" in pet:
+            for weight_entry in pet["weights"]:
+                logs["weights"].append({
+                    "pet": pet_name,
+                    "weight": weight_entry["weight"],
+                    "date": weight_entry["date"]
+                })
+
+    try:
+        with open(filepath, 'w', encoding='utf-8') as f:
+            json.dump(logs, f, indent=4, ensure_ascii=False)
+        print(Colors.GREEN + f"✅ Full logs exported successfully to: {filepath}" + Colors.RESET)
+    except Exception as e:
+        print(Colors.RED + f"❌ Failed to export JSON: {e}" + Colors.RESET)

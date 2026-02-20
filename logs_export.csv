@@ -1,0 +1,19 @@
+Pet Name,Log Type,Details,Timestamp,Additional Info
+Arya,Feeding,45g (110 kcal),2025-04-07 08:15,
+Arya,Feeding,50g (125 kcal),2025-04-07 17:30,
+Arya,Feeding,48g (118 kcal),2025-04-06 08:20,
+Arya,Feeding,42g (105 kcal),2025-04-05 08:10,
+Leo,Feeding,180g (320 kcal),2025-04-07 07:00,
+Leo,Feeding,160g (285 kcal),2025-04-07 18:00,
+Leo,Feeding,175g (310 kcal),2025-04-06 07:10,
+Arya,Medication,Gabapentin — 0.5 ml,2025-04-07 08:00,For anxiety during thunderstorms
+Arya,Medication,Enalapril — 2.5 mg,2025-04-07 08:00,For heart condition
+Leo,Medication,Metronidazole — 1 tablet (250mg),2025-04-07 09:00,For diarrhea — finish course
+Leo,Medication,Flea & Tick — 1 pipette,2025-04-07 10:00,Applied to back of neck
+Arya,Weight,3.3 kg,2025-04-07,
+Arya,Weight,3.1 kg,2025-04-01,
+Arya,Weight,2.9 kg,2025-03-25,
+Arya,Weight,2.8 kg,2025-03-18,
+Leo,Weight,15.2 kg,2025-04-07,
+Leo,Weight,15.5 kg,2025-04-01,
+Leo,Weight,15.8 kg,2025-03-25,

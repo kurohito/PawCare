@@ -26,11 +26,11 @@ def find_pet_by_name(pets: dict, name: str) -> Optional[str]:
         if pet_data.get("name", "").lower() == name.lower():
             return pet_id
     return None
-def save_pets(pets: dict, filepath: str = "data/pets.json"):
+def save_pets(pets: dict, filepath: str = "data/data/pets.json"):
     os.makedirs(os.path.dirname(filepath), exist_ok=True)
     with open(filepath, "w") as f:
         json.dump(pets, f, indent=2)
-def load_pets(filepath: str = "data/pets.json") -> dict:
+def load_pets(filepath: str = "data/data/pets.json") -> dict:
     if not os.path.exists(filepath):
         return {}
     with open(filepath, "r") as f:

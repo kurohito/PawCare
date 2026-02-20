@@ -14,7 +14,9 @@ from utils.logging_utils import (
     change_weight_unit,
     delete_all_data,
     reset_user_prefs,
-    manage_feeding_schedule,  # ✅ NEW: Import for feeding schedule
+    manage_feeding_schedule,
+    export_logs_to_csv,
+    export_logs_to_json,
 )
 
 def add_pet():
@@ -288,8 +290,9 @@ def main():
         print("5. Log Food/Meds/Weight")
         print("6. View Daily Summary")
         print("7. View Weekly Weight Trend")
-        print("8. View Logs")
-        print("9. Settings")
+        print("8. Export Logs (CSV/JSON)")
+        print("9. View Logs")
+        print("10. Settings")
         print("0. Exit")
         print("="*50)
         choice = input("Choose an option: ").strip()
@@ -309,9 +312,29 @@ def main():
         elif choice == "7":
             plot_weekly_weight_trend(load_pets())
         elif choice == "8":
+            print("\n" + "="*50)
+            print("📤 EXPORT LOGS")
+            print("1. Export to CSV")
+            print("2. Export to JSON")
+            print("0. Back")
+            print("="*50)
+            sub_choice = input("Choose export format: ").strip()
+
+            if sub_choice == "1":
+                export_logs_to_csv(load_pets(), "logs_export.csv")
+                input("Press Enter to return...")
+            elif sub_choice == "2":
+                export_logs_to_json(load_pets(), "logs_export.json")
+                input("Press Enter to return...")
+            elif sub_choice == "0":
+                pass
+            else:
+                print(Colors.RED + "❌ Invalid option." + Colors.RESET)
+                input("Press Enter to return...")
+        elif choice == "9":
             print(Colors.YELLOW + "ℹ️  Logs are viewable in data/logs.json" + Colors.RESET)
             input("Press Enter to return...")
-        elif choice == "9":
+        elif choice == "10":
             while True:
                 print("\n" + "="*56)
                 print("⚙️  SETTINGS")
@@ -326,7 +349,7 @@ def main():
                 sub_choice = input("Choose an option: ").strip()
 
                 if sub_choice == "1":
-                    manage_feeding_schedule(load_pets())  # ✅ NEW: Call feeding schedule manager
+                    manage_feeding_schedule(load_pets())
                 elif sub_choice == "2":
                     manage_medications(load_pets())
                 elif sub_choice == "3":

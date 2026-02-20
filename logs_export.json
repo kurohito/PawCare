@@ -1,0 +1,121 @@
+{
+    "feedings": [
+        {
+            "pet": "Arya",
+            "grams": 45,
+            "calories": 110,
+            "timestamp": "2025-04-07 08:15"
+        },
+        {
+            "pet": "Arya",
+            "grams": 50,
+            "calories": 125,
+            "timestamp": "2025-04-07 17:30"
+        },
+        {
+            "pet": "Arya",
+            "grams": 48,
+            "calories": 118,
+            "timestamp": "2025-04-06 08:20"
+        },
+        {
+            "pet": "Arya",
+            "grams": 42,
+            "calories": 105,
+            "timestamp": "2025-04-05 08:10"
+        },
+        {
+            "pet": "Leo",
+            "grams": 180,
+            "calories": 320,
+            "timestamp": "2025-04-07 07:00"
+        },
+        {
+            "pet": "Leo",
+            "grams": 160,
+            "calories": 285,
+            "timestamp": "2025-04-07 18:00"
+        },
+        {
+            "pet": "Leo",
+            "grams": 175,
+            "calories": 310,
+            "timestamp": "2025-04-06 07:10"
+        }
+    ],
+    "medications": [
+        {
+            "pet": "Arya",
+            "medication": "Gabapentin",
+            "dose": "0.5 ml",
+            "notes": "For anxiety during thunderstorms",
+            "frequency": "every_day",
+            "next_due": "2025-04-08",
+            "timestamp": "2025-04-07 08:00"
+        },
+        {
+            "pet": "Arya",
+            "medication": "Enalapril",
+            "dose": "2.5 mg",
+            "notes": "For heart condition",
+            "frequency": "every_day",
+            "next_due": "2025-04-08",
+            "timestamp": "2025-04-07 08:00"
+        },
+        {
+            "pet": "Leo",
+            "medication": "Metronidazole",
+            "dose": "1 tablet (250mg)",
+            "notes": "For diarrhea — finish course",
+            "frequency": "every_day",
+            "next_due": "2025-04-10",
+            "timestamp": "2025-04-07 09:00"
+        },
+        {
+            "pet": "Leo",
+            "medication": "Flea & Tick",
+            "dose": "1 pipette",
+            "notes": "Applied to back of neck",
+            "frequency": "weekly",
+            "next_due": "2025-04-14",
+            "timestamp": "2025-04-07 10:00"
+        }
+    ],
+    "weights": [
+        {
+            "pet": "Arya",
+            "weight": 3.3,
+            "date": "2025-04-07"
+        },
+        {
+            "pet": "Arya",
+            "weight": 3.1,
+            "date": "2025-04-01"
+        },
+        {
+            "pet": "Arya",
+            "weight": 2.9,
+            "date": "2025-03-25"
+        },
+        {
+            "pet": "Arya",
+            "weight": 2.8,
+            "date": "2025-03-18"
+        },
+        {
+            "pet": "Leo",
+            "weight": 15.2,
+            "date": "2025-04-07"
+        },
+        {
+            "pet": "Leo",
+            "weight": 15.5,
+            "date": "2025-04-01"
+        },
+        {
+            "pet": "Leo",
+            "weight": 15.8,
+            "date": "2025-03-25"
+        }
+    ]
+}
