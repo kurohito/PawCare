@@ -1,50 +1,11 @@
-[
-  {
-    "timestamp": "2026-02-20T17:54:00.571919",
-    "type": "feeding",
-    "pet_id": "1402596843329",
-    "pet_name": "Arya",
-    "details": "92.0g (78.2 kcal)"
-  },
-  {
-    "timestamp": "2026-02-20T17:54:00.573498",
-    "type": "log_feeding",
-    "pet_id": "1402596843329",
-    "pet_name": "Arya",
-    "details": "92.0g (78.2 kcal)"
-  },
-  {
-    "timestamp": "2026-02-20T17:55:14.148976",
-    "type": "medication",
-    "pet_id": "1402596843329",
-    "pet_name": "Arya",
-    "details": "'Dermotic', '0.5ml in each ear'"
-  },
-  {
-    "timestamp": "2026-02-20T17:55:14.158564",
-    "type": "log_medication",
-    "pet_id": "1402596843329",
-    "pet_name": "Arya",
-    "details": "Dose: 'Dermotic', '0.5ml in each ear'"
-  },
-  {
-    "timestamp": "2026-02-20T17:55:49.798928",
-    "type": "plot_weight_graph",
-    "pet_id": "1402596843329",
-    "pet_name": "Arya",
-    "details": "Generated today's weight graph"
-  },
-  {
-    "timestamp": "2026-02-20T17:55:58.725802",
-    "type": "plot_weekly_weight_trend",
-    "pet_id": "1402596843329",
-    "pet_name": "Arya",
-    "details": "Generated weekly trend"
-  },
-  {
-    "timestamp": "2026-02-20T18:33:33.277782",
-    "pet_id": "Arya",
-    "type": "medication",
-    "details": "'Metacam', '0.33ml'"
-  }
-]
+{
+    "feedings": [],
+    "medications": [],
+    "weights": [
+        {
+            "pet": "Arya",
+            "weight": 3.3,
+            "date": "2026-02-20T19:39:45.679699"
+        }
+    ]
+}

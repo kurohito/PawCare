@@ -2,320 +2,423 @@
 
 import json
 import os
-import threading
-import time
-from datetime import datetime
+import datetime
 from utils.colors import Colors
 
+# --- FILE PATHS ---
+PET_DATA_FILE = "data/pets.json"
 LOGS_FILE = "data/logs.json"
+USER_PREFS_FILE = "data/user_prefs.json"
 
-# --- LOGGING UTILITIES ---
+# --- HELPER: Load Pet Data ---
+def load_pets():
+    if not os.path.exists(PET_DATA_FILE):
+        return {}
+    try:
+        with open(PET_DATA_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except json.JSONDecodeError:
+        print(Colors.RED + "❌ Corrupted pets.json. Starting fresh." + Colors.RESET)
+        return {}
 
-def log_feeding_entry(pets: dict, pet_name: str, grams: float, calories: float):
-    """Log a feeding entry for a pet."""
+# --- HELPER: Save Pet Data ---
+def save_pets(pets):
+    os.makedirs("data", exist_ok=True)
+    with open(PET_DATA_FILE, 'w', encoding='utf-8') as f:
+        json.dump(pets, f, indent=2, ensure_ascii=False)
+
+# --- HELPER: Load User Preferences ---
+def load_user_prefs():
+    if not os.path.exists(USER_PREFS_FILE):
+        # File doesn't exist → create it
+        save_user_prefs({"unit": "kg"})
+        return {"unit": "kg"}
+    try:
+        with open(USER_PREFS_FILE, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            if isinstance(data, dict) and "unit" in data and data["unit"] in ["kg", "lb"]:
+                return data
+            else:
+                # Invalid structure → reset
+                print(Colors.YELLOW + "⚠️  Invalid user_prefs.json structure. Resetting to default." + Colors.RESET)
+                save_user_prefs({"unit": "kg"})
+                return {"unit": "kg"}
+    except (json.JSONDecodeError, UnicodeDecodeError, PermissionError):
+        print(Colors.YELLOW + "⚠️  Corrupted or unreadable user_prefs.json. Resetting to default." + Colors.RESET)
+        save_user_prefs({"unit": "kg"})
+        return {"unit": "kg"}
+
+# --- HELPER: Save User Preferences ---
+def save_user_prefs(prefs):
+    os.makedirs("data", exist_ok=True)
+    with open(USER_PREFS_FILE, 'w', encoding='utf-8') as f:
+        json.dump(prefs, f, indent=2, ensure_ascii=False)
+
+# --- LOGGING FUNCTIONS ---
+def log_feeding_entry(pets, pet_name, grams, calories):
     if pet_name not in pets:
-        print(Colors.RED + "❌ Pet not found." + Colors.RESET)
         return
-
-    today = datetime.today().strftime("%Y-%m-%d")
-    time_str = datetime.now().strftime("%H:%M")
-
-    # Initialize logs if missing
-    if "feeding_logs" not in pets[pet_name]:
-        pets[pet_name]["feeding_logs"] = []
-
-    pets[pet_name]["feeding_logs"].append({
-        "date": today,
-        "time": time_str,
+    entry = {
+        "timestamp": datetime.datetime.now().isoformat(),
         "grams": grams,
         "calories": calories
-    })
-
-    # Save logs to central file
-    _save_log_entry("feeding", pet_name, today, time_str, {"grams": grams, "calories": calories})
-    print(f"📝 Logged feeding for {pet_name}: {grams}g ({calories} kcal)")
-
-def log_medication_entry(pets: dict, pet_name: str, dose: str):
-    """Log a medication entry for a pet."""
-    if pet_name not in pets:
-        print(Colors.RED + "❌ Pet not found." + Colors.RESET)
-        return
-
-    today = datetime.today().strftime("%Y-%m-%d")
-    time_str = datetime.now().strftime("%H:%M")
-
-    # Initialize logs if missing
-    if "medication_logs" not in pets[pet_name]:
-        pets[pet_name]["medication_logs"] = []
-
-    pets[pet_name]["medication_logs"].append({
-        "date": today,
-        "time": time_str,
-        "dose": dose
-    })
-
-    _save_log_entry("medication", pet_name, today, time_str, {"dose": dose})
-    print(f"📝 Logged medication for {pet_name}: {dose}")
-
-def log_weight_entry(pets: dict, pet_name: str, weight: float):
-    """Log a weight entry for a pet."""
-    if pet_name not in pets:
-        print(Colors.RED + "❌ Pet not found." + Colors.RESET)
-        return
-
-    today = datetime.today().strftime("%Y-%m-%d")
-
-    # Initialize logs if missing
-    if "weight_logs" not in pets[pet_name]:
-        pets[pet_name]["weight_logs"] = []
-
-    pets[pet_name]["weight_logs"].append({
-        "date": today,
-        "weight": weight
-    })
-
-    _save_log_entry("weight", pet_name, today, datetime.now().strftime("%H:%M"), {"weight": weight})
-    print(f"📝 Logged weight for {pet_name}: {weight}kg")
-
-def _save_log_entry(log_type: str, pet_name: str, date: str, time: str, data: dict):
-    """Save a log entry to the central logs.json file."""
-    log_entry = {
-        "timestamp": datetime.now().isoformat(),
-        "type": log_type,
-        "pet": pet_name,
-        "date": date,
-        "time": time,
-        "data": data
     }
+    pets[pet_name].setdefault("feedings", []).append(entry)
+    save_pets(pets)
 
-    # Ensure logs directory exists
-    os.makedirs(os.path.dirname(LOGS_FILE), exist_ok=True)
+def log_medication_entry(pets, pet_name, dose):
+    if pet_name not in pets:
+        return
+    # Find the medication being logged (by dose) — assumes exactly one match
+    meds = pets[pet_name].get("medications", [])
+    for med in meds:
+        if med["dose"] == dose:
+            # Update next_due based on interval
+            now = datetime.datetime.now()
+            if med.get("interval_hours"):
+                next_due = now + datetime.timedelta(hours=med["interval_hours"])
+                med["next_due"] = next_due.strftime("%Y-%m-%d %H:%M")
+            else:
+                # One-time med: mark as "used" — no next_due
+                med["next_due"] = "used"
+            break
+    # Log in external logs file
+    log_entry = {
+        "type": "medication",
+        "pet": pet_name,
+        "medication": dose,
+        "timestamp": datetime.datetime.now().isoformat()
+    }
+    log_to_file(log_entry)
+    save_pets(pets)
 
-    # Load existing logs
+def log_weight_entry(pets, pet_name, weight):
+    if pet_name not in pets:
+        return
+    entry = {
+        "timestamp": datetime.datetime.now().isoformat(),
+        "weight": weight,
+        "unit": load_user_prefs().get("unit", "kg")
+    }
+    pets[pet_name].setdefault("weights", []).append(entry)
+    save_pets(pets)
+
+# --- LOG FILE (separate from pet data) ---
+def log_to_file(entry):
+    os.makedirs("data", exist_ok=True)
     logs = []
     if os.path.exists(LOGS_FILE):
         try:
             with open(LOGS_FILE, 'r', encoding='utf-8') as f:
                 logs = json.load(f)
-                if not isinstance(logs, list):
-                    logs = []
-        except Exception:
-            logs = []
-
-    # Append new log
-    logs.append(log_entry)
-
-    # Save back
+        except json.JSONDecodeError:
+            pass
+    logs.append(entry)
     with open(LOGS_FILE, 'w', encoding='utf-8') as f:
         json.dump(logs, f, indent=2, ensure_ascii=False)
 
-def toggle_reminder(pets: dict, pet_name: str, reminder_type: str):
-    """Toggle feeding or medication reminder for a pet."""
-    if pet_name not in pets:
-        return
-
-    if reminder_type == "feeding":
-        pets[pet_name]["feeding_reminder_enabled"] = not pets[pet_name].get("feeding_reminder_enabled", False)
-    elif reminder_type == "medication":
-        pets[pet_name]["medication_reminder_enabled"] = not pets[pet_name].get("medication_reminder_enabled", False)
-
-def snooze_reminder(pets: dict, pet_name: str, hours: int):
-    """Snooze all reminders for a pet for N hours."""
-    if pet_name not in pets:
-        return
-
-    snooze_until = (datetime.now().timestamp() + hours * 3600)
-    pets[pet_name]["snooze_until"] = snooze_until
-
-def set_quiet_hours(pets: dict, pet_name: str, start: str, end: str):
-    """Set quiet hours for a pet."""
-    if pet_name not in pets:
-        return
-    pets[pet_name]["quiet_hours"] = {"start": start, "end": end}
-
-def is_valid_time(time_str: str) -> bool:
-    """Validate time format HH:MM."""
-    try:
-        datetime.strptime(time_str, "%H:%M")
-        return True
-    except ValueError:
-        return False
-
-def print_daily_summary(pets: dict, pet_name=None):
+# --- VIEW UPCOMING MEDICATIONS ---
+def view_upcoming_medications(pets: dict):
     """
-    Print daily summary for a specific pet, or all pets if pet_name is None.
+    Displays ALL upcoming medication doses within the next 3 days (72 hours).
+    Shows every single dose for repeating medications — even if originally set to 2026.
     """
-    # If pet_name is provided, show only that pet
-    if pet_name:
-        if pet_name not in pets:
-            print(Colors.RED + "❌ Pet not found." + Colors.RESET)
-            return
+    if not pets:
+        print("\n" + "="*70)
+        print(Colors.YELLOW + "⚠️  No pets found. Add a pet first!" + Colors.RESET)
+        print("="*70)
+        input("\nPress Enter to return to main menu...")
+        return
 
-        pet = pets[pet_name]
-        name = pet["name"]
-        calories_consumed = sum(log["calories"] for log in pet.get("feeding_logs", []) if log.get("date") == datetime.today().strftime("%Y-%m-%d"))
-        calories_target = pet.get("calorie_target", 100.0)
-        weight_logs = pet.get("weight_logs", [])
-        recent_weight = weight_logs[-1]["weight"] if weight_logs else "N/A"
-        recent_weight_date = weight_logs[-1]["date"] if weight_logs else "N/A"
+    upcoming = get_upcoming_medications(pets)
 
-        print(f"🐾 {name}")
-        print(f"   🍽️  Calories Consumed: {calories_consumed:.1f} kcal / {calories_target:.1f} kcal target")
-        print(f"   ⚖️  Latest Weight: {recent_weight} kg (as of {recent_weight_date})")
+    print("\n" + "="*70)
+    print(Colors.BOLD + "⏰ UPCOMING MEDICATIONS (Next 3 Days)" + Colors.RESET)
+    print("="*70)
 
-        # Show medication logs today
-        med_logs = [log for log in pet.get("medication_logs", []) if log.get("date") == datetime.today().strftime("%Y-%m-%d")]
-        if med_logs:
-            print(f"   💊 Medication: {len(med_logs)} doses today")
-            for log in med_logs:
-                print(f"      - {log['dose']} at {log['time']}")
-        else:
-            print(f"   💊 Medication: No doses logged today")
-
-        # Show reminder status
-        feed_reminder = "ON" if pet.get("feeding_reminder_enabled", False) else "OFF"
-        med_reminder = "ON" if pet.get("medication_reminder_enabled", False) else "OFF"
-        print(f"   🔔 Reminders: Feeding: {feed_reminder} | Medication: {med_reminder}")
-
+    if not upcoming:
+        print(Colors.YELLOW + "✅ No medications due in the next 3 days." + Colors.RESET)
     else:
-        # Legacy: Show for all pets
-        print(Colors.CYAN + "📋 DAILY SUMMARY FOR ALL PETS" + Colors.RESET)
-        for name, pet in pets.items():
-            calories_consumed = sum(log["calories"] for log in pet.get("feeding_logs", []) if log.get("date") == datetime.today().strftime("%Y-%m-%d"))
-            calories_target = pet.get("calorie_target", 100.0)
-            weight_logs = pet.get("weight_logs", [])
-            recent_weight = weight_logs[-1]["weight"] if weight_logs else "N/A"
-            recent_weight_date = weight_logs[-1]["date"] if weight_logs else "N/A"
+        for pet, name, dose, due_dt, interval in upcoming:
+            due_str = due_dt.strftime("%Y-%m-%d at %H:%M")
+            if interval:
+                status = f"🔁 Every {interval}h"
+                due_str += f" ({status})"
+            print(f"{Colors.GREEN}{pet}{Colors.RESET} — {name} — {dose} — Due: {due_str}")
 
-            print(f"\n🐾 {name}")
-            print(f"   🍽️  Calories Consumed: {calories_consumed:.1f} kcal / {calories_target:.1f} kcal target")
-            print(f"   ⚖️  Latest Weight: {recent_weight} kg (as of {recent_weight_date})")
+    print("="*70)
+    input("\nPress Enter to return to main menu...")
 
-            # Show medication logs today
-            med_logs = [log for log in pet.get("medication_logs", []) if log.get("date") == datetime.today().strftime("%Y-%m-%d")]
-            if med_logs:
-                print(f"   💊 Medication: {len(med_logs)} doses today")
-                for log in med_logs:
-                    print(f"      - {log['dose']} at {log['time']}")
+
+def get_upcoming_medications(pets: dict) -> list:
+    """
+    Returns list of tuples: (pet_name, med_name, dose, due_datetime, interval_hours)
+    Calculates next 72 hours of doses from current time.
+    Ignores year/month/day — only uses time-of-day (HH:MM) and interval.
+    """
+    now = datetime.datetime.now()
+    end_time = now + datetime.timedelta(hours=72)  # 3 days
+    upcoming = []
+
+    for pet_name, pet_data in pets.items():
+        meds = pet_data.get("medications", [])
+        for med in meds:
+            name = med["name"]
+            dose = med["dose"]
+            interval_hours = med.get("interval_hours")
+            next_due_str = med.get("next_due", "2026-01-01 00:00")
+
+            # Extract HH:MM from next_due (ignore date)
+            try:
+                next_due_dt = datetime.datetime.strptime(next_due_str, "%Y-%m-%d %H:%M")
+                base_time = next_due_dt.time()
+            except ValueError:
+                # If invalid, assume 00:00
+                base_time = datetime.time(0, 0)
+
+            if interval_hours is None:
+                # One-time medication
+                if next_due_str != "used":
+                    due_dt = datetime.datetime.combine(now.date(), base_time)
+                    if now <= due_dt <= end_time:
+                        upcoming.append((pet_name, name, dose, due_dt, None))
             else:
-                print(f"   💊 Medication: No doses logged today")
+                # Repeating medication
+                # Start from today at base_time
+                current_date = now.date()
+                # First candidate: today at base_time
+                due_dt = datetime.datetime.combine(current_date, base_time)
+                # If due_dt is in past, find next occurrence
+                if due_dt < now:
+                    due_dt += datetime.timedelta(hours=interval_hours)
+                # Generate all due times until end_time
+                while due_dt <= end_time:
+                    upcoming.append((pet_name, name, dose, due_dt, interval_hours))
+                    due_dt += datetime.timedelta(hours=interval_hours)
 
-            feed_reminder = "ON" if pet.get("feeding_reminder_enabled", False) else "OFF"
-            med_reminder = "ON" if pet.get("medication_reminder_enabled", False) else "OFF"
-            print(f"   🔔 Reminders: Feeding: {feed_reminder} | Medication: {med_reminder}")
+    # Sort by due date
+    upcoming.sort(key=lambda x: x[3])
+    return upcoming
 
-# --- GRAPHING FUNCTIONS ---
-def plot_weight_graph(pets: dict, pet_name: str):
-    """Plot today's weight entries for a pet (ASCII bar chart)."""
-    if pet_name not in pets:
-        print(Colors.RED + "❌ Pet not found." + Colors.RESET)
-        return
-
-    logs = pets[pet_name].get("weight_logs", [])
-    today_logs = [log for log in logs if log["date"] == datetime.today().strftime("%Y-%m-%d")]
-
-    if not today_logs:
-        print(Colors.YELLOW + "📭 No weight data logged today." + Colors.RESET)
-        return
-
-    print(f"\n{Colors.CYAN}📈 WEIGHT TREND FOR {pet_name.upper()} TODAY{Colors.RESET}")
-    print("="*50)
-    for log in today_logs:
-        weight = log["weight"]
-        time_str = log.get("time", "unknown")
-        # Scale: 1kg = 5 bars
-        bar = "█" * int(weight * 5)
-        print(f"   {time_str}: {weight}kg | {bar}")
-    print("="*50)
-
-def plot_weekly_weight_trend(pets: dict, pet_name: str):
-    """Plot weekly weight trend for a pet (last 7 days)."""
-    if pet_name not in pets:
-        print(Colors.RED + "❌ Pet not found." + Colors.RESET)
-        return
-
-    logs = pets[pet_name].get("weight_logs", [])
-    if not logs:
-        print(Colors.YELLOW + "📭 No weight data logged." + Colors.RESET)
-        return
-
-    # Sort logs by date
-    logs.sort(key=lambda x: x["date"])
-    today = datetime.today()
-    week_ago = today.strftime("%Y-%m-%d")
-    week_logs = [log for log in logs if log["date"] >= (today - datetime.timedelta(days=6)).strftime("%Y-%m-%d")]
-
-    if not week_logs:
-        print(Colors.YELLOW + "📭 Less than a week of weight data." + Colors.RESET)
-        return
-
-    print(f"\n{Colors.CYAN}📉 WEEKLY WEIGHT TREND FOR {pet_name.upper()}{Colors.RESET}")
-    print("="*60)
-    for log in week_logs:
-        date_str = log["date"]
-        weight = log["weight"]
-        # Show as bar: 1kg = 10 chars
-        bar = "█" * int(weight * 5)
-        print(f"   {date_str}: {weight}kg | {bar}")
-    print("="*60)
-
-# --- BACKGROUND REMINDER SCHEDULER ---
-def start_feeding_scheduler(pets: dict):
+# --- MANAGE MEDICATIONS (NEW FUNCTION) ---
+def manage_medications(pets: dict):
     """
-    Start a background thread that checks every minute for feeding reminders.
-    Sends notifications if it's time and no snooze/quiet hours are active.
+    Interactive menu to add, edit, or remove medications for a pet.
+    Updates pet data and saves to file.
     """
-    def check_reminders():
-        while True:
-            time.sleep(60)  # Check every minute
-            now = datetime.now()
-            now_time_str = now.strftime("%H:%M")
-            now_timestamp = now.timestamp()
+    if not pets:
+        print(Colors.YELLOW + "⚠️  No pets found. Add a pet first!" + Colors.RESET)
+        input("Press Enter to return...")
+        return
 
-            for pet_name, pet in pets.items():
-                if not pet.get("feeding_reminder_enabled", False):
-                    continue
+    print("\nAvailable pets:")
+    for name in pets.keys():
+        print(f"  - {name}")
+    pet_name = input("\nEnter pet name to manage medications: ").strip()
 
-                # Skip if snoozed
-                if pet.get("snooze_until") and now_timestamp < pet["snooze_until"]:
-                    continue
+    if pet_name not in pets:
+        print(Colors.RED + "❌ Pet not found!" + Colors.RESET)
+        input("Press Enter to return...")
+        return
 
-                # Skip if in quiet hours
-                quiet = pet.get("quiet_hours")
-                if quiet:
-                    start_time = quiet["start"]
-                    end_time = quiet["end"]
-                    if is_valid_time(start_time) and is_valid_time(end_time):
-                        # Convert to minutes since midnight
-                        def time_to_minutes(t):
-                            h, m = map(int, t.split(':'))
-                            return h * 60 + m
+    pet = pets[pet_name]
+    meds = pet.get("medications", [])
 
-                        now_minutes = now.hour * 60 + now.minute
-                        start_minutes = time_to_minutes(start_time)
-                        end_minutes = time_to_minutes(end_time)
+    while True:
+        print(f"\n🩺 Managing medications for {pet_name}")
+        if not meds:
+            print("  No medications set.")
+        else:
+            for i, med in enumerate(meds, 1):
+                interval = f" (Every {med['interval_hours']}h)" if med.get("interval_hours") else " (One-time)"
+                next_due = med.get("next_due", "N/A")
+                print(f"  {i}. {med['name']} — {med['dose']}{interval} — Next: {next_due}")
 
-                        if start_minutes <= end_minutes:
-                            # Normal case (e.g., 22:00–06:00)
-                            if start_minutes <= now_minutes < end_minutes:
-                                continue
-                        else:
-                            # Overnight (e.g., 22:00–06:00)
-                            if now_minutes >= start_minutes or now_minutes < end_minutes:
-                                continue
+        print("\nOptions:")
+        print("  1. Add Medication")
+        print("  2. Edit Medication")
+        print("  3. Remove Medication")
+        print("  4. Back to Settings")
+        choice = input("Choose an option: ").strip()
 
-                # Check if it’s time for a scheduled feeding
-                schedule = pet.get("feeding_schedule", [])
-                for scheduled_time in schedule:
-                    if scheduled_time == now_time_str:
-                        print(
-                            Colors.YELLOW + f"🔔 REMINDER: Time to feed {pet_name} at {now_time_str}!" + Colors.RESET
-                        )
-                        # Optional: Play sound or send OS notification here
-                        # For now, just print
-                        break  # Only one reminder per minute
+        if choice == "1":
+            med_name = input("Medication name: ").strip()
+            if not med_name:
+                print(Colors.RED + "❌ Medication name cannot be empty!" + Colors.RESET)
+                continue
+            dose = input("Dose (e.g., 0.5ml per ear): ").strip()
+            if not dose:
+                print(Colors.RED + "❌ Dose cannot be empty!" + Colors.RESET)
+                continue
+            interval_input = input("Repeat every ? hours (leave blank for one-time): ").strip()
+            interval_hours = int(interval_input) if interval_input.isdigit() else None
+            # Use a placeholder next_due — it will be recalculated on first log or view
+            med = {
+                "name": med_name,
+                "dose": dose,
+                "interval_hours": interval_hours,
+                "next_due": "2026-01-01 00:00"  # placeholder — will be auto-calculated
+            }
+            meds.append(med)
+            print(Colors.GREEN + f"✅ Added: {med_name}" + Colors.RESET)
 
-    # Start thread (daemon so it exits when main program exits)
-    thread = threading.Thread(target=check_reminders, daemon=True)
-    thread.start()
-    print(Colors.GREEN + "✅ Background feeding scheduler started." + Colors.RESET)
+        elif choice == "2":
+            if not meds:
+                print(Colors.YELLOW + "⚠️  No medications to edit." + Colors.RESET)
+                continue
+            try:
+                idx = int(input("Enter number to edit: ")) - 1
+                if 0 <= idx < len(meds):
+                    med = meds[idx]
+                    print(f"Editing: {med['name']} — {med['dose']}")
+                    new_name = input(f"New name (current: {med['name']}): ").strip()
+                    if new_name:
+                        med["name"] = new_name
+                    new_dose = input(f"New dose (current: {med['dose']}): ").strip()
+                    if new_dose:
+                        med["dose"] = new_dose
+                    interval_input = input(f"New interval (current: {med.get('interval_hours', 'one-time')}h, leave blank to disable): ").strip()
+                    if interval_input == "":
+                        med["interval_hours"] = None
+                    elif interval_input.isdigit():
+                        med["interval_hours"] = int(interval_input)
+                    else:
+                        print(Colors.RED + "❌ Invalid interval. Keeping current." + Colors.RESET)
+                    # Reset next_due to force recalculation
+                    med["next_due"] = "2026-01-01 00:00"
+                    print(Colors.GREEN + "✅ Medication updated!" + Colors.RESET)
+                else:
+                    print(Colors.RED + "❌ Invalid selection." + Colors.RESET)
+            except ValueError:
+                print(Colors.RED + "❌ Invalid input." + Colors.RESET)
+
+        elif choice == "3":
+            if not meds:
+                print(Colors.YELLOW + "⚠️  No medications to remove." + Colors.RESET)
+                continue
+            try:
+                idx = int(input("Enter number to remove: ")) - 1
+                if 0 <= idx < len(meds):
+                    removed = meds.pop(idx)
+                    print(Colors.GREEN + f"✅ Removed: {removed['name']}" + Colors.RESET)
+                else:
+                    print(Colors.RED + "❌ Invalid selection." + Colors.RESET)
+            except ValueError:
+                print(Colors.RED + "❌ Invalid input." + Colors.RESET)
+
+        elif choice == "4":
+            save_pets(pets)
+            print(Colors.GREEN + "✅ Changes saved. Returning to Settings..." + Colors.RESET)
+            break
+        else:
+            print(Colors.RED + "❌ Invalid option." + Colors.RESET)
+
+# --- CHANGE WEIGHT UNIT ---
+def change_weight_unit():
+    prefs = load_user_prefs()
+    current = prefs.get("unit", "kg").upper()
+    print(f"Current unit: {current}")
+    new_unit = input("Enter new unit (kg or lb): ").strip().lower()
+    if new_unit in ["kg", "lb"]:
+        prefs["unit"] = new_unit
+        save_user_prefs(prefs)
+        print(Colors.GREEN + f"✅ Weight unit changed to {new_unit.upper()}!" + Colors.RESET)
+    else:
+        print(Colors.RED + "❌ Invalid unit. Use 'kg' or 'lb'." + Colors.RESET)
+
+# --- DELETE ALL DATA ---
+def delete_all_data():
+    confirm = input("⚠️  Are you sure you want to delete ALL pet data and logs? (y/N): ").strip().lower()
+    if confirm == "y":
+        files = [PET_DATA_FILE, LOGS_FILE, USER_PREFS_FILE]
+        for f in files:
+            if os.path.exists(f):
+                os.remove(f)
+        print(Colors.GREEN + "✅ All data deleted!" + Colors.RESET)
+    else:
+        print(Colors.YELLOW + "❌ Deletion cancelled." + Colors.RESET)
+
+# --- RESET USER PREFERENCES ---
+def reset_user_prefs():
+    confirm = input("⚠️  Reset all user preferences to default? (y/N): ").strip().lower()
+    if confirm == "y":
+        save_user_prefs({"unit": "kg"})
+        print(Colors.GREEN + "✅ Preferences reset to default." + Colors.RESET)
+    else:
+        print(Colors.YELLOW + "❌ Reset cancelled." + Colors.RESET)
+
+# --- DAILY SUMMARY ---
+def print_daily_summary(pets: dict):
+    print("\n" + "="*60)
+    print(Colors.BOLD + "📅 DAILY SUMMARY" + Colors.RESET)
+    print("="*60)
+
+    if not pets:
+        print(Colors.YELLOW + "No pets registered." + Colors.RESET)
+        return
+
+    today = datetime.date.today()
+    today_str = today.isoformat()
+
+    for pet_name, data in pets.items():
+        print(f"\n🐾 {pet_name}")
+
+        # Feedings today
+        feedings = data.get("feedings", [])
+        today_feedings = [f for f in feedings if f["timestamp"].startswith(today_str)]
+        total_grams = sum(f["grams"] for f in today_feedings)
+        total_calories = sum(f["calories"] for f in today_feedings)
+        print(f"  🍽️  Feedings: {len(today_feedings)} meals — {total_grams}g — {total_calories} kcal")
+
+        # Weights today
+        weights = data.get("weights", [])
+        today_weights = [w for w in weights if w["timestamp"].startswith(today_str)]
+        if today_weights:
+            latest_weight = today_weights[-1]["weight"]
+            unit = today_weights[-1].get("unit", "kg")
+            print(f"  ⚖️   Weight: {latest_weight} {unit.upper()}")
+
+        # Medications due today
+        upcoming = get_upcoming_medications({pet_name: data})
+        due_today = [m for m in upcoming if m[3].date() == today]
+        if due_today:
+            print(f"  💊 Medications due today: {len(due_today)}")
+            for _, name, dose, due_dt, _ in due_today:
+                print(f"    - {name}: {dose} at {due_dt.strftime('%H:%M')}")
+
+    print("="*60)
+    input("Press Enter to return...")
+
+# --- WEEKLY WEIGHT TREND ---
+def plot_weekly_weight_trend(pets: dict):
+    import matplotlib.pyplot as plt
+
+    if not pets:
+        print(Colors.YELLOW + "⚠️  No pets to plot." + Colors.RESET)
+        input("Press Enter to return...")
+        return
+
+    plt.figure(figsize=(10, 5))
+    for pet_name, data in pets.items():
+        weights = data.get("weights", [])
+        if not weights:
+            continue
+        # Sort by date
+        weights.sort(key=lambda x: x["timestamp"])
+        dates = [datetime.datetime.fromisoformat(w["timestamp"]) for w in weights]
+        values = [w["weight"] for w in weights]
+        plt.plot(dates, values, marker='o', label=pet_name)
+
+    if len(plt.gca().lines) == 0:
+        print(Colors.YELLOW + "⚠️  No weight data to plot." + Colors.RESET)
+        input("Press Enter to return...")
+        return
+
+    plt.title("🐾 Weekly Weight Trend")
+    plt.xlabel("Date")
+    plt.ylabel(f"Weight ({load_user_prefs().get('unit', 'kg').upper()})")
+    plt.xticks(rotation=45)
+    plt.legend()
+    plt.tight_layout()
+    plt.grid(True, linestyle='--', alpha=0.6)
+    plt.show()
