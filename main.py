@@ -8,12 +8,13 @@ from utils.logging_utils import (
     log_weight_entry,
     plot_weight_graph
 )
+from datetime import datetime
 
-init(autoreset=True)  # Reset colors automatically
+init(autoreset=True)
 
 DATA_FILE = "pets.json"
 
-# Load pets
+# Load / save
 def load_pets():
     try:
         with open(DATA_FILE, "r") as f:
@@ -21,24 +22,23 @@ def load_pets():
     except FileNotFoundError:
         return []
 
-# Save pets
 def save_pets(pets):
     with open(DATA_FILE, "w") as f:
         json.dump(pets, f, indent=4)
 
-# Cute banner
+# Banners & menus
 def print_banner():
     print(Fore.MAGENTA + Style.BRIGHT + "\n🌸 PawCare Tracker 🌸")
     print(Fore.CYAN + "Because tiny creatures deserve organised love\n")
 
-# Menu display
 def print_menu():
     print(Fore.YELLOW + "1. Add pet")
     print(Fore.YELLOW + "2. Log feeding")
     print(Fore.YELLOW + "3. Log medication")
     print(Fore.YELLOW + "4. Daily summary")
-    print(Fore.YELLOW + "5. Exit")
+    print(Fore.YELLOW + "5. Dashboard overview")
     print(Fore.YELLOW + "6. Log / View Weight History")
+    print(Fore.YELLOW + "7. Exit")
 
 # Add pet
 def add_pet(pets):
@@ -50,7 +50,7 @@ def add_pet(pets):
     pet = {
         "name": name,
         "weight": weight,
-        "weight_history": [{"date": "", "weight": weight}],
+        "weight_history": [{"date": datetime.now().strftime("%Y-%m-%d"), "weight": weight}],
         "cal_target": cal_target,
         "cal_per_100g": cal_per_100g,
         "feedings": [],
@@ -60,7 +60,7 @@ def add_pet(pets):
     save_pets(pets)
     print(Fore.GREEN + f"🌟 {name} added!\n")
 
-# Log feeding
+# Feeding
 def log_feeding(pets):
     if not pets:
         print(Fore.RED + "No pets yet. Add a pet first.\n")
@@ -80,7 +80,7 @@ def log_feeding(pets):
     print(Fore.GREEN + f"✅ Logged {entry['calories']} cal for {pet['name']} at {entry['time']}")
     print(Fore.MAGENTA + f"Calorie Progress: [{bar}] {int(progress*100)}%\n")
 
-# Log medication
+# Medication
 def log_med(pets):
     if not pets:
         print(Fore.RED + "No pets yet. Add a pet first.\n")
@@ -110,7 +110,7 @@ def daily_summary(pets):
         bar = "🌸" * int(progress * 20) + "💤" * (20 - int(progress * 20))
         print(Fore.CYAN + f"Calorie Progress: [{bar}] {int(progress*100)}%\n")
 
-# Weight log & graph
+# Weight
 def weight_menu(pets):
     if not pets:
         print(Fore.RED + "No pets yet. Add a pet first.\n")
@@ -133,6 +133,34 @@ def weight_menu(pets):
     else:
         print(Fore.RED + "Invalid choice.\n")
 
+# Dashboard
+def dashboard(pets):
+    if not pets:
+        print(Fore.RED + "No pets yet.\n")
+        return
+    print(Fore.MAGENTA + "\n🌸 PawCare Dashboard 🌸\n")
+    for pet in pets:
+        print(Fore.CYAN + f"--- {pet['name']} ---")
+        # Calorie summary
+        total_cal = sum(f["calories"] for f in pet.get("feedings", []))
+        progress = min(total_cal / pet["cal_target"], 1.0)
+        bar = "🌸" * int(progress * 20) + "💤" * (20 - int(progress * 20))
+        print(f"Calories: {total_cal}/{pet['cal_target']} cal [{bar}]")
+        # Weight latest
+        if pet.get("weight_history"):
+            latest_weight = pet["weight_history"][-1]["weight"]
+            print(f"Weight: {latest_weight} kg")
+        else:
+            print("Weight: N/A")
+        # Medications today
+        meds = pet.get("medications", [])
+        if meds:
+            meds_str = ", ".join([f"{m['med_name']} ({m['dose']})" for m in meds])
+            print(f"Medications: {meds_str}")
+        else:
+            print("Medications: None")
+        print()
+
 # Main loop
 def main():
     pets = load_pets()
@@ -140,7 +168,6 @@ def main():
         print_banner()
         print_menu()
         choice = input("\nChoose an option: ")
-
         if choice == "1":
             add_pet(pets)
         elif choice == "2":
@@ -150,10 +177,12 @@ def main():
         elif choice == "4":
             daily_summary(pets)
         elif choice == "5":
-            print(Fore.MAGENTA + "Goodbye! 🌸")
-            break
+            dashboard(pets)
         elif choice == "6":
             weight_menu(pets)
+        elif choice == "7":
+            print(Fore.MAGENTA + "Goodbye! 🌸")
+            break
         else:
             print(Fore.RED + "Invalid choice. Try again.\n")
 

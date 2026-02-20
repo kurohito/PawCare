@@ -25,17 +25,16 @@ def print_daily_summary(pet):
     print(f"Calories today: {total_cal}/{target} cal")
     if total_cal < target:
         print("⚠️  Below target! Consider giving more food.")
-
     meds = pet.get("medications", [])
     if meds:
-        print("Medications given today:")
+        print("Medications today:")
         for med in meds:
             print(f" - {med['med_name']} ({med['dose']}) at {med['time']}")
     else:
         print("⚠️  No medications logged today!")
     print()
 
-# Weight tracking
+# Weight
 def log_weight_entry(pet, weight):
     entry = {"date": datetime.now().strftime("%Y-%m-%d"), "weight": weight}
     pet.setdefault("weight_history", []).append(entry)
@@ -50,7 +49,6 @@ def plot_weight_graph(pet, width=20):
     max_w = max(weights)
     min_w = min(weights)
     step = (max_w - min_w) / width if max_w != min_w else 1
-
     print(f"📊 Weight History for {pet['name']}")
     for entry in history:
         bar_len = int((entry["weight"] - min_w) / step)
