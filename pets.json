@@ -1,7 +1,7 @@
 {
   "1": {
     "name": "Arya",
-    "weight": 3.3,
+    "weight": 3.6,
     "calorie_target": 200,
     "calorie_density": 85,
     "feedings": [
@@ -40,6 +40,10 @@
       {
         "date": "2026-02-17",
         "weight": 3.5
+      },
+      {
+        "date": "2026-02-20",
+        "weight": 3.6
       }
     ]
   },
