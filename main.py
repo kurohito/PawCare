@@ -1,209 +1,141 @@
 # main.py
+
+from utils.calorie_calculator import calculate_calories
+from utils.medication import log_medication
+from utils.logging_utils import log_action
+from utils.pet_editor import edit_pet
 import json
-from colorama import init, Fore, Style
-from utils.logging_utils import (
-    log_feeding_entry,
-    log_medication_entry,
-    print_daily_summary,
-    log_weight_entry,
-    plot_weight_graph
-)
-from datetime import datetime
 
-init(autoreset=True)
+PET_FILE = "pets.json"
 
-DATA_FILE = "pets.json"
-
-# Load / save pets
 def load_pets():
     try:
-        with open(DATA_FILE, "r") as f:
+        with open(PET_FILE, "r") as f:
             return json.load(f)
-    except FileNotFoundError:
+    except (FileNotFoundError, json.JSONDecodeError):
         return []
 
 def save_pets(pets):
-    with open(DATA_FILE, "w") as f:
+    with open(PET_FILE, "w") as f:
         json.dump(pets, f, indent=4)
 
-# Banners & menus
-def print_banner():
-    print(Fore.MAGENTA + Style.BRIGHT + "\n🌸 PawCare Tracker 🌸")
-    print(Fore.CYAN + "Because tiny creatures deserve organised love\n")
+def add_pet():
+    pets = load_pets()
+    name = input("Pet name: ").strip()
+    while True:
+        try:
+            weight = float(input("Weight in kg: "))
+            break
+        except ValueError:
+            print("Please enter a valid number.")
+    while True:
+        try:
+            calorie_target = float(input("Daily calorie target: "))
+            break
+        except ValueError:
+            print("Please enter a valid number.")
 
-def print_menu():
-    print(Fore.YELLOW + "1. Add pet")
-    print(Fore.YELLOW + "2. Log feeding")
-    print(Fore.YELLOW + "3. Log medication")
-    print(Fore.YELLOW + "4. Daily summary")
-    print(Fore.YELLOW + "5. Dashboard overview")
-    print(Fore.YELLOW + "6. Log / View Weight History")
-    print(Fore.YELLOW + "7. Exit")
-    print(Fore.YELLOW + "8. Delete All Data (⚠️ careful!)")
-
-# Add pet
-def add_pet(pets):
-    print(Fore.MAGENTA + "\n🌸 Add a New Pet 🌸")
-    name = input("Pet name: ")
-    weight = float(input("Weight (kg): "))
-    cal_target = float(input("Daily calorie target: "))
-    cal_per_100g = float(input("Food calories per 100g: "))
-    pet = {
+    pets.append({
         "name": name,
         "weight": weight,
-        "weight_history": [{"date": datetime.now().strftime("%Y-%m-%d"), "weight": weight}],
-        "cal_target": cal_target,
-        "cal_per_100g": cal_per_100g,
+        "calorie_target": calorie_target,
         "feedings": [],
-        "medications": []
-    }
-    pets.append(pet)
+        "medications": [],
+        "weight_history": []
+    })
     save_pets(pets)
-    print(Fore.GREEN + f"🌟 {name} added!\n")
+    log_action(f"Added new pet: {name}")
+    print(f"{name} added successfully!\n")
 
-# Feeding
-def log_feeding(pets):
-    if not pets:
-        print(Fore.RED + "No pets yet. Add a pet first.\n")
-        return
-    print(Fore.CYAN + "\n🍽 Log Feeding")
-    for i, pet in enumerate(pets):
-        print(f"{i + 1}. {pet['name']}")
-    choice = int(input("Select pet by number: ")) - 1
-    pet = pets[choice]
-
-    grams = float(input("Grams fed: "))
-    entry = log_feeding_entry(pet, grams)
-    save_pets(pets)
-
-    progress = min(sum(f["calories"] for f in pet["feedings"]) / pet['cal_target'], 1.0)
-    bar = "🌸" * int(progress * 20) + "💤" * (20 - int(progress * 20))
-    print(Fore.GREEN + f"✅ Logged {entry['calories']} cal for {pet['name']} at {entry['time']}")
-    print(Fore.MAGENTA + f"Calorie Progress: [{bar}] {int(progress*100)}%\n")
-
-# Medication
-def log_med(pets):
-    if not pets:
-        print(Fore.RED + "No pets yet. Add a pet first.\n")
-        return
-    print(Fore.CYAN + "\n💊 Log Medication")
-    for i, pet in enumerate(pets):
-        print(f"{i + 1}. {pet['name']}")
-    choice = int(input("Select pet by number: ")) - 1
-    pet = pets[choice]
-
-    med_name = input("Medication name: ")
-    dose = input("Dose (e.g., 0.5ml): ")
-    entry = log_medication_entry(pet, med_name, dose)
-    save_pets(pets)
-    print(Fore.GREEN + f"✅ Logged {med_name} ({dose}) for {pet['name']} at {entry['time']}\n")
-
-# Daily summary
-def daily_summary(pets):
-    if not pets:
-        print(Fore.RED + "No pets yet.\n")
-        return
-    print(Fore.MAGENTA + "\n🌸 Daily Summary 🌸\n")
-    for pet in pets:
-        print_daily_summary(pet)
-        total_cal = sum(f["calories"] for f in pet.get("feedings", []))
-        progress = min(total_cal / pet["cal_target"], 1.0)
-        bar = "🌸" * int(progress * 20) + "💤" * (20 - int(progress * 20))
-        print(Fore.CYAN + f"Calorie Progress: [{bar}] {int(progress*100)}%\n")
-
-# Weight menu
-def weight_menu(pets):
-    if not pets:
-        print(Fore.RED + "No pets yet. Add a pet first.\n")
-        return
-    for i, pet in enumerate(pets):
-        print(f"{i + 1}. {pet['name']}")
-    choice_pet = int(input("Select pet by number: ")) - 1
-    pet = pets[choice_pet]
-
-    print("\n1. Log new weight")
-    print("2. Show weight graph")
-    sub_choice = input("Choose an option: ")
-    if sub_choice == "1":
-        weight = float(input("Enter weight in kg: "))
-        entry = log_weight_entry(pet, weight)
-        save_pets(pets)
-        print(Fore.GREEN + f"✅ Logged {weight} kg for {pet['name']} on {entry['date']}\n")
-    elif sub_choice == "2":
-        plot_weight_graph(pet)
-    else:
-        print(Fore.RED + "Invalid choice.\n")
-
-# Dashboard
-def dashboard(pets):
-    if not pets:
-        print(Fore.RED + "No pets yet.\n")
-        return
-    print(Fore.MAGENTA + "\n🌸 PawCare Dashboard 🌸\n")
-    for pet in pets:
-        print(Fore.CYAN + f"--- {pet['name']} ---")
-        total_cal = sum(f["calories"] for f in pet.get("feedings", []))
-        progress = min(total_cal / pet["cal_target"], 1.0)
-        bar = "🌸" * int(progress * 20) + "💤" * (20 - int(progress * 20))
-        print(f"Calories: {total_cal}/{pet['cal_target']} cal [{bar}]")
-        if pet.get("weight_history"):
-            latest_weight = pet["weight_history"][-1]["weight"]
-            print(f"Weight: {latest_weight} kg")
-        else:
-            print("Weight: N/A")
-        meds = pet.get("medications", [])
-        if meds:
-            meds_str = ", ".join([f"{m['med_name']} ({m['dose']})" for m in meds])
-            print(f"Medications: {meds_str}")
-        else:
-            print("Medications: None")
-        print()
-
-# Delete all data safely
-def delete_all_data(pets):
-    print(Fore.RED + "\n⚠️ You are about to DELETE ALL PET DATA! ⚠️")
-    print("This action cannot be undone.")
-    
-    confirm1 = input("Type 'DELETE' to confirm: ")
-    if confirm1 != "DELETE":
-        print(Fore.YELLOW + "Deletion cancelled.\n")
-        return
-    
-    confirm2 = input("Are you 100% sure? Type 'YES' to proceed: ")
-    if confirm2 != "YES":
-        print(Fore.YELLOW + "Deletion cancelled.\n")
-        return
-    
-    pets.clear()
-    save_pets(pets)
-    print(Fore.GREEN + "✅ All pet data has been deleted safely.\n")
-
-# Main loop
-def main():
+def log_feeding(pet_name):
     pets = load_pets()
+    pet = next((p for p in pets if p["name"].lower() == pet_name.lower()), None)
+    if not pet:
+        print(f"No pet found with the name '{pet_name}'.")
+        return
+
     while True:
-        print_banner()
-        print_menu()
-        choice = input("\nChoose an option: ")
-        if choice == "1":
-            add_pet(pets)
-        elif choice == "2":
-            log_feeding(pets)
-        elif choice == "3":
-            log_med(pets)
-        elif choice == "4":
-            daily_summary(pets)
-        elif choice == "5":
-            dashboard(pets)
-        elif choice == "6":
-            weight_menu(pets)
-        elif choice == "7":
-            print(Fore.MAGENTA + "Goodbye! 🌸")
+        try:
+            grams = float(input("Grams fed: "))
             break
-        elif choice == "8":
-            delete_all_data(pets)
+        except ValueError:
+            print("Please enter a valid number.")
+    
+    calories = calculate_calories(grams)
+    pet["feedings"].append({
+        "grams": grams,
+        "calories": calories
+    })
+    save_pets(pets)
+    log_action(f"Logged feeding for {pet['name']}: {grams}g ({calories} cal)")
+    print(f"Feeding logged: {grams}g ({calories} cal)\n")
+
+def daily_summary(pet_name):
+    pets = load_pets()
+    pet = next((p for p in pets if p["name"].lower() == pet_name.lower()), None)
+    if not pet:
+        print(f"No pet found with the name '{pet_name}'.")
+        return
+
+    total_calories = sum(f["calories"] for f in pet["feedings"])
+    print(f"\nDaily Summary for {pet['name']}:")
+    print(f"Weight: {pet['weight']} kg")
+    print(f"Total Calories: {total_calories}/{pet['calorie_target']}")
+    print(f"Feedings logged: {len(pet['feedings'])}")
+    print(f"Medications logged: {len(pet['medications'])}\n")
+
+def delete_all_data():
+    """Safely delete all pet data with double confirmation."""
+    confirm1 = input("Are you sure you want to delete ALL pet data? (y/n): ").strip().lower()
+    if confirm1 != "y":
+        print("Delete cancelled.\n")
+        return
+
+    confirm2 = input("This cannot be undone! Type DELETE to confirm: ").strip()
+    if confirm2 != "DELETE":
+        print("Delete cancelled.\n")
+        return
+
+    with open(PET_FILE, "w") as f:
+        f.write("[]")  # Reset JSON to empty list
+
+    log_action("All pet data deleted")
+    print("All pet data deleted successfully! 💛\n")
+
+def main_menu():
+    while True:
+        print("\n🌸🐾 PawCare Main Menu 🌸🐾")
+        print("1. Add Pet")
+        print("2. Edit Pet")
+        print("3. Log Feeding")
+        print("4. Log Medication")
+        print("5. Daily Summary")
+        print("6. Delete All Pet Data")
+        print("7. Quit")
+
+        choice = input("Choose an option: ").strip()
+
+        if choice == "1":
+            add_pet()
+        elif choice == "2":
+            pet_name = input("Enter the name of the pet to edit: ").strip()
+            edit_pet(pet_name)
+        elif choice == "3":
+            pet_name = input("Enter the name of the pet: ").strip()
+            log_feeding(pet_name)
+        elif choice == "4":
+            pet_name = input("Enter the name of the pet: ").strip()
+            log_medication(pet_name)
+        elif choice == "5":
+            pet_name = input("Enter the name of the pet: ").strip()
+            daily_summary(pet_name)
+        elif choice == "6":
+            delete_all_data()
+        elif choice == "7":
+            print("Goodbye! 🌸🐾")
+            break
         else:
-            print(Fore.RED + "Invalid choice. Try again.\n")
+            print("Invalid choice. Please try again.")
 
 if __name__ == "__main__":
-    main()
+    main_menu()

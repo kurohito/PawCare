@@ -1,7 +1,7 @@
 # 🌱 Backlog
 
 ## v0.4 – Safety & UX Enhancements
-- [ ] Add pet editing (name, weight, calorie targets) 🐾 **[Medium]**
+- [x] Add pet editing (name, weight, calorie targets) 🐾 **[Medium]**
 - [ ] Search pet by name 🔍 **[Medium]**
 - [ ] Confirmation messages for critical actions ⚠️ **[High]**
 - [ ] Emoji & ASCII menu improvements 🌸 **[Low]**
