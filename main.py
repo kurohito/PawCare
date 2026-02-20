@@ -16,7 +16,9 @@ from utils.logging_utils import (
     export_logs_to_csv,
     export_logs_to_json,
     view_upcoming_medications,
-    load_user_prefs
+    load_user_prefs,
+    manage_feeding,  
+    normalize_feeding_schedule,  
 )
 
 # --- HELPER: select_pet() ---
@@ -53,14 +55,14 @@ def select_pet(pets):
         print(Colors.RED + "❌ Please enter a number." + Colors.RESET)
         return None
 
-# --- SETTINGS MENU ---
+# --- SETTINGS MENU --- (UPDATED TO INCLUDE MANAGE FEEDING)
 def show_settings_menu(pets):
     while True:
         print("\n" + "="*60)
-        print(color_text("⚙️  SETTINGS", Colors.BLUE + Colors.BOLD))
+        print(Colors.BLUE + Colors.BOLD + "⚙️  SETTINGS" + Colors.RESET)
         print("="*60)
-        print("1. Set Feeding Schedule (meals, calories, reminders)")
-        print("2. Manage Medications & View Upcoming")
+        print("1. Manage Feeding")                      # 👈 NEW — replaces "Set Feeding Schedule"
+        print("2. Manage Medications & View Upcoming")  # 👈 Unchanged
         print("3. Change Weight Unit (Current: " + load_user_prefs().get("unit", "kg").upper() + ")")
         print("4. Delete All Data (Clear Files)")
         print("5. Reset User Preferences")
@@ -70,9 +72,9 @@ def show_settings_menu(pets):
         choice = input("Choose option: ").strip()
 
         if choice == "1":
-            manage_feeding_schedule(pets)
+            manage_feeding(pets)  # 👈 NEW — calls new sub-menu
         elif choice == "2":
-            manage_medications(pets)  # 👈 This now handles everything internally
+            manage_medications(pets)
         elif choice == "3":
             change_weight_unit()
         elif choice == "4":
@@ -86,7 +88,7 @@ def show_settings_menu(pets):
         else:
             print(Colors.RED + "❌ Invalid option. Please try again." + Colors.RESET)
 
-# --- COLOR TEXT HELPER ---
+# --- COLOR TEXT HELPER --- (Moved here to fix reference)
 def color_text(text, color):
     return color + text + Colors.RESET
 
@@ -96,6 +98,7 @@ def main():
     print("=" * 40)
 
     pets = load_pets()
+    normalize_feeding_schedule(pets)
 
     while True:
         print("\n" + "="*50)

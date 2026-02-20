@@ -43,9 +43,9 @@
     ],
     "weights": [],
     "feeding_schedule": [
-      "09:00",
-      "14:00",
-      "21:00"
+      68.67,
+      68.67,
+      68.67
     ],
     "feeding_reminders": true,
     "calories_per_100g": 83.0
