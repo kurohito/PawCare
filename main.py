@@ -14,7 +14,7 @@ init(autoreset=True)
 
 DATA_FILE = "pets.json"
 
-# Load / save
+# Load / save pets
 def load_pets():
     try:
         with open(DATA_FILE, "r") as f:
@@ -39,6 +39,7 @@ def print_menu():
     print(Fore.YELLOW + "5. Dashboard overview")
     print(Fore.YELLOW + "6. Log / View Weight History")
     print(Fore.YELLOW + "7. Exit")
+    print(Fore.YELLOW + "8. Delete All Data (⚠️ careful!)")
 
 # Add pet
 def add_pet(pets):
@@ -110,7 +111,7 @@ def daily_summary(pets):
         bar = "🌸" * int(progress * 20) + "💤" * (20 - int(progress * 20))
         print(Fore.CYAN + f"Calorie Progress: [{bar}] {int(progress*100)}%\n")
 
-# Weight
+# Weight menu
 def weight_menu(pets):
     if not pets:
         print(Fore.RED + "No pets yet. Add a pet first.\n")
@@ -141,18 +142,15 @@ def dashboard(pets):
     print(Fore.MAGENTA + "\n🌸 PawCare Dashboard 🌸\n")
     for pet in pets:
         print(Fore.CYAN + f"--- {pet['name']} ---")
-        # Calorie summary
         total_cal = sum(f["calories"] for f in pet.get("feedings", []))
         progress = min(total_cal / pet["cal_target"], 1.0)
         bar = "🌸" * int(progress * 20) + "💤" * (20 - int(progress * 20))
         print(f"Calories: {total_cal}/{pet['cal_target']} cal [{bar}]")
-        # Weight latest
         if pet.get("weight_history"):
             latest_weight = pet["weight_history"][-1]["weight"]
             print(f"Weight: {latest_weight} kg")
         else:
             print("Weight: N/A")
-        # Medications today
         meds = pet.get("medications", [])
         if meds:
             meds_str = ", ".join([f"{m['med_name']} ({m['dose']})" for m in meds])
@@ -160,6 +158,25 @@ def dashboard(pets):
         else:
             print("Medications: None")
         print()
+
+# Delete all data safely
+def delete_all_data(pets):
+    print(Fore.RED + "\n⚠️ You are about to DELETE ALL PET DATA! ⚠️")
+    print("This action cannot be undone.")
+    
+    confirm1 = input("Type 'DELETE' to confirm: ")
+    if confirm1 != "DELETE":
+        print(Fore.YELLOW + "Deletion cancelled.\n")
+        return
+    
+    confirm2 = input("Are you 100% sure? Type 'YES' to proceed: ")
+    if confirm2 != "YES":
+        print(Fore.YELLOW + "Deletion cancelled.\n")
+        return
+    
+    pets.clear()
+    save_pets(pets)
+    print(Fore.GREEN + "✅ All pet data has been deleted safely.\n")
 
 # Main loop
 def main():
@@ -183,6 +200,8 @@ def main():
         elif choice == "7":
             print(Fore.MAGENTA + "Goodbye! 🌸")
             break
+        elif choice == "8":
+            delete_all_data(pets)
         else:
             print(Fore.RED + "Invalid choice. Try again.\n")
 
