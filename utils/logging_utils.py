@@ -41,25 +41,111 @@ def save_user_prefs(prefs):
 def color_text(text, color):
     return f"{color}{text}{Colors.RESET}"
 
+# --- NEW HELPER: Select Pet by Number ---
+def select_pet(pets):
+    """
+    Displays numbered list of pets and returns the chosen pet name.
+    Returns None if no pets or invalid selection.
+    """
+    if not pets:
+        print(Colors.YELLOW + "⚠️  No pets available. Add a pet first." + Colors.RESET)
+        return None
+
+    print("\n" + "="*40)
+    print(color_text("🐾 SELECT A PET", Colors.BLUE))
+    print("="*40)
+
+    pet_list = list(pets.keys())
+    for i, name in enumerate(pet_list, 1):
+        print(f"{i}. {name}")
+
+    print("0. Cancel")
+    print("-" * 40)
+
+    try:
+        choice = int(input("Choose pet by number: ").strip())
+        if choice == 0:
+            return None
+        if 1 <= choice <= len(pet_list):
+            return pet_list[choice - 1]
+        else:
+            print(Colors.RED + "❌ Invalid selection." + Colors.RESET)
+            return None
+    except ValueError:
+        print(Colors.RED + "❌ Please enter a number." + Colors.RESET)
+        return None
+
 # --- LOGGING FUNCTIONS ---
-def log_feeding_entry(pets, pet_name, grams, calories=None):
-    if pet_name not in pets:
+def log_feeding_entry(pets):
+    """
+    Log a feeding entry for a selected pet (by number).
+    """
+    pet_name = select_pet(pets)
+    if not pet_name:
         return
-    if calories is None and "calories_per_100g" in pets[pet_name] and pets[pet_name]["calories_per_100g"]:
+
+    if pet_name not in pets:
+        print(Colors.RED + "❌ Pet not found!" + Colors.RESET)
+        return
+
+    try:
+        grams = float(input("Enter food amount in grams: ").strip())
+        if grams <= 0:
+            print(Colors.RED + "❌ Grams must be positive." + Colors.RESET)
+            return
+    except ValueError:
+        print(Colors.RED + "❌ Invalid number." + Colors.RESET)
+        return
+
+    calories = None
+    if "calories_per_100g" in pets[pet_name] and pets[pet_name]["calories_per_100g"]:
         calories = (grams / 100) * pets[pet_name]["calories_per_100g"]
+        print(f"💡 Auto-calculated: {calories:.1f} kcal")
     else:
-        calories = calories or 0
+        cal_input = input("Enter calories (optional, press Enter to skip): ").strip()
+        if cal_input:
+            try:
+                calories = float(cal_input)
+                if calories < 0:
+                    print(Colors.RED + "❌ Calories must be non-negative." + Colors.RESET)
+                    return
+            except ValueError:
+                print(Colors.RED + "❌ Invalid calorie value." + Colors.RESET)
+                return
+
     entry = {
         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
         "grams": grams,
-        "calories": round(calories, 2)
+        "calories": round(calories, 2) if calories is not None else 0
     }
     pets[pet_name].setdefault("feedings", []).append(entry)
     save_pets(pets)
+    print(Colors.GREEN + "✅ Feeding logged!" + Colors.RESET)
 
-def log_medication_entry(pets, pet_name, medication, dose, notes=""):
-    if pet_name not in pets:
+def log_medication_entry(pets):
+    """
+    Log a medication entry for a selected pet (by number).
+    """
+    pet_name = select_pet(pets)
+    if not pet_name:
         return
+
+    if pet_name not in pets:
+        print(Colors.RED + "❌ Pet not found!" + Colors.RESET)
+        return
+
+    medication = input("Medication name: ").strip()
+    if not medication:
+        print(Colors.RED + "❌ Medication name cannot be empty!" + Colors.RESET)
+        return
+
+    dose = input("Dose (e.g., 0.5ml): ").strip()
+    if not dose:
+        print(Colors.RED + "❌ Dose cannot be empty!" + Colors.RESET)
+        return
+
+    notes = input("📝 Optional notes: ").strip() or ""
+
     entry = {
         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
         "medication": medication,
@@ -67,18 +153,40 @@ def log_medication_entry(pets, pet_name, medication, dose, notes=""):
         "notes": notes,
         "taken": True
     }
+
     pets[pet_name].setdefault("medications", []).append(entry)
     save_pets(pets)
+    print(Colors.GREEN + "✅ Medication logged as taken!" + Colors.RESET)
 
-def log_weight_entry(pets, pet_name, weight):
-    if pet_name not in pets:
+def log_weight_entry(pets):
+    """
+    Log a weight entry for a selected pet (by number).
+    """
+    pet_name = select_pet(pets)
+    if not pet_name:
         return
+
+    if pet_name not in pets:
+        print(Colors.RED + "❌ Pet not found!" + Colors.RESET)
+        return
+
+    try:
+        weight = float(input("Enter weight in kg: ").strip())
+        if weight <= 0:
+            print(Colors.RED + "❌ Weight must be positive." + Colors.RESET)
+            return
+    except ValueError:
+        print(Colors.RED + "❌ Invalid number." + Colors.RESET)
+        return
+
     entry = {
         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
         "weight": weight
     }
+
     pets[pet_name].setdefault("weights", []).append(entry)
     save_pets(pets)
+    print(Colors.GREEN + "✅ Weight logged!" + Colors.RESET)
 
 # --- VIEWING & ANALYTICS ---
 def print_daily_summary(pets):

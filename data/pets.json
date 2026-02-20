@@ -1,40 +1,46 @@
 {
-    "Arya": {
-        "species": "cat",
-        "weight": 3.3,
-        "target_daily_calories": 206,
-        "medications": [
-            {
-                "timestamp": "2026-02-20 22:06",
-                "medication": "Metacam",
-                "dose": "0.33ml",
-                "notes": "For pain relief after surgery, take for 1 week.",
-                "frequency": "every_day",
-                "interval_hours": 24,
-                "dosing_time": "09:00",
-                "next_due": "2026-02-21 09:00",
-                "reminder_enabled": true
-            },
-            {
-                "timestamp": "2026-02-20 22:07",
-                "medication": "Dermotic",
-                "dose": "0.5ml per ear",
-                "notes": "For an ear infection, take for two weeks.",
-                "frequency": "custom",
-                "interval_hours": 12,
-                "dosing_time": "09:00",
-                "next_due": "2026-02-21 09:00",
-                "reminder_enabled": true
-            }
-        ],
-        "feedings": [],
-        "weights": [],
-        "feeding_schedule": [
-            "09:00",
-            "14:00",
-            "21:00"
-        ],
-        "feeding_reminders": true,
-        "calories_per_100g": 83.0
-    }
+  "Arya": {
+    "species": "cat",
+    "weight": 3.3,
+    "target_daily_calories": 206,
+    "medications": [
+      {
+        "timestamp": "2026-02-20 22:06",
+        "medication": "Metacam",
+        "dose": "0.33ml",
+        "notes": "For pain relief after surgery, take for 1 week.",
+        "frequency": "every_day",
+        "interval_hours": 24,
+        "dosing_time": "09:00",
+        "next_due": "2026-02-21 09:00",
+        "reminder_enabled": true
+      },
+      {
+        "timestamp": "2026-02-20 22:07",
+        "medication": "Dermotic",
+        "dose": "0.5ml per ear",
+        "notes": "For an ear infection, take for two weeks.",
+        "frequency": "custom",
+        "interval_hours": 12,
+        "dosing_time": "09:00",
+        "next_due": "2026-02-21 09:00",
+        "reminder_enabled": true
+      }
+    ],
+    "feedings": [
+      {
+        "timestamp": "2026-02-20 22:24",
+        "grams": 97.0,
+        "calories": 80.51
+      }
+    ],
+    "weights": [],
+    "feeding_schedule": [
+      "09:00",
+      "14:00",
+      "21:00"
+    ],
+    "feeding_reminders": true,
+    "calories_per_100g": 83.0
+  }
 }
