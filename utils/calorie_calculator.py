@@ -2,14 +2,14 @@
 
 def calculate_calories(grams, cal_per_100g):
     """
-    Calculate the calories for a given amount of food.
+    Calculate calories for a given food portion.
     
     Parameters:
-    - grams (float): Amount of food fed in grams.
-    - cal_per_100g (float): Calories per 100 grams of the food.
-
+    - grams (float)
+    - cal_per_100g (float)
+    
     Returns:
-    - float: Calories for the given portion, rounded to 2 decimals.
+    - float: calories rounded to 2 decimals
     """
     try:
         calories = (grams / 100) * cal_per_100g
