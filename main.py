@@ -1,314 +1,420 @@
-import json
-from typing import Dict
-from pathlib import Path
-# Import your custom utilities
+# main.py
+
 from utils.logging_utils import (
+    print_daily_summary,
     log_feeding_entry,
     log_medication_entry,
     log_weight_entry,
-    print_daily_summary,
-    plot_weight_graph,
-    plot_weekly_weight_trend,
-    log_action,
-    calculate_recent_weight_change,
-    start_feeding_scheduler,
     toggle_reminder,
     snooze_reminder,
     set_quiet_hours,
-    Pet  # 👈 Import Pet type
+    is_valid_time,
+    start_feeding_scheduler,
+    plot_weight_graph,
+    plot_weekly_weight_trend
 )
-from utils.calorie_calculator import calculate_calories
-from utils.pet_editor import edit_pet
-# CONFIGURATION
-PETS_FILE = "pets.json"  # 👈 DEFINED HERE — FIXED THE ERROR!
-# --- ANSI colors ---
-class Colors:
-    RED = "\033[91m"
-    GREEN = "\033[92m"
-    YELLOW = "\033[93m"
-    CYAN = "\033[96m"
-    END = "\033[0m"
-def color_text(text, color):
-    return f"{color}{text}{Colors.END}"
-# --- Load pets with automatic migration ---
-try:
-    with open(PETS_FILE, "r", encoding="utf-8") as f:
-        pets: Dict[str, Pet] = json.load(f)
-        if not isinstance(pets, dict):
-            pets = {}
-except FileNotFoundError:
-    pets = {}
-# --- MIGRATION: Clean up inconsistent pet data ---
-def migrate_pet_data():
-    """Migrate old pet structures to consistent schema."""
-    for pet_id in list(pets.keys()):
-        pet = pets[pet_id]
-        # Remove redundant feeding_schedule if present
-        if "feeding_schedule" in pet:
-            del pet["feeding_schedule"]
-        # Migrate reminder_settings → top-level fields
-        if "reminder_settings" in pet:
-            settings = pet.pop("reminder_settings")
-            pet["reminder_enabled"] = settings.get("enabled", False)
-            pet["quiet_hours"] = settings.get("quiet_hours", {"start": None, "end": None})
-            pet["snooze_until"] = settings.get("snoozed_until", None)
-        # Ensure required fields exist
-        pet.setdefault("reminder_enabled", False)
-        pet.setdefault("quiet_hours", {"start": None, "end": None})
-        pet.setdefault("snooze_until", None)
-        pet.setdefault("feeding_times", [])
-migrate_pet_data()
-# --- Helper Functions ---
-def save_pets():
-    with open(PETS_FILE, "w", encoding="utf-8") as f:
-        json.dump(pets, f, indent=2, ensure_ascii=False)
-def confirm_action(message):
-    while True:
-        response = input(f"{message} (yes/no): ").strip().lower()
-        if response in ["yes", "y"]:
-            return True
-        elif response in ["no", "n"]:
-            print("Action cancelled.\n")
-            return False
-        else:
-            print("Please type 'yes' or 'no'.")
-def find_pet_by_name():
-    name = input("Enter pet name to search: ").strip()
-    for pet_id, pet in pets.items():
-        if pet["name"].lower() == name.lower():
-            print(f"✅ Found: {pet['name']}")
-            # Auto warnings
-            total_cal = sum(f.get("calories", 0) for f in pet.get("feedings", []))
-            target = pet.get("calorie_target", 0)
-            if total_cal < target:
-                print(color_text(f"⚠️ {pet['name']} calories below target today: {total_cal}/{target}", Colors.RED))
-            weekly_change = calculate_recent_weight_change(pet)
-            if abs(weekly_change) >= 5:
-                print(color_text(f"⚠️ Rapid weight change in last 7 days: {weekly_change:+.1f}%", Colors.RED))
-            # Reminder status
-            reminder_status = "🟢 On" if pet.get("reminder_enabled", False) else "🔴 Off"
-            print(f"Reminder status: {reminder_status}")
-            return pet, pet_id
-    print(color_text("⚠️ Pet not found.", Colors.RED))
-    return None, None
-# --- Mini-sparkline generator ---
-def mini_sparkline(pet, width=20):
-    history = pet.get("weight_history", [])
-    if len(history) < 2:
-        return ""
-    weights = [h["weight"] for h in history[-width:]]
-    spark = ""
-    prev = None
-    for w in weights:
-        if prev is None:
-            color = Colors.YELLOW
-        elif w > prev:
-            color = Colors.GREEN
-        elif w < prev:
-            color = Colors.RED
-        else:
-            color = Colors.YELLOW
-        spark += color_text("▇", color)
-        prev = w
-    return spark
-# --- Main loop ---
+from utils.colors import Colors
+import json
+import os
+from datetime import datetime
+
+# --- DATA FILE ---
+PETS_FILE = "data/pets.json"
+
+# --- INITIALIZE PETS ---
+def load_pets() -> dict:
+    """Load pets from JSON file. Return empty dict if file doesn't exist."""
+    if not os.path.exists(PETS_FILE):
+        return {}
+    try:
+        with open(PETS_FILE, 'r', encoding='utf-8') as f:
+            pets = json.load(f)
+            # SAFETY MIGRATION: Ensure all pets have required fields
+            for pet_id, pet_data in pets.items():
+                # Add missing keys with defaults
+                pet_data.setdefault("name", pet_id)
+                pet_data.setdefault("species", "unknown")
+                pet_data.setdefault("breed", "unknown")
+                pet_data.setdefault("calorie_target", 100.0)
+                pet_data.setdefault("feeding_reminder_enabled", False)
+                pet_data.setdefault("medication_reminder_enabled", False)
+                pet_data.setdefault("feeding_schedule", [])
+                pet_data.setdefault("medication_times", [])
+                pet_data.setdefault("snooze_until", None)
+                pet_data.setdefault("quiet_hours", None)
+            return pets
+    except (json.JSONDecodeError, UnicodeDecodeError, OSError):
+        print(Colors.RED + "⚠️ Corrupted or unreadable pets file. Starting fresh." + Colors.RESET)
+        return {}
+
+def save_pets(pets: dict):
+    """Save pets to JSON file."""
+    try:
+        os.makedirs(os.path.dirname(PETS_FILE), exist_ok=True)
+        with open(PETS_FILE, 'w', encoding='utf-8') as f:
+            json.dump(pets, f, indent=2, ensure_ascii=False)
+    except Exception as e:
+        print(Colors.RED + f"❌ Failed to save pets: {e}" + Colors.RESET)
+
+def delete_all_data():
+    """Delete all pet and log data."""
+    for file in [PETS_FILE, "data/logs.json"]:
+        if os.path.exists(file):
+            os.remove(file)
+            print(Colors.RED + f"🗑️ Deleted: {file}" + Colors.RESET)
+    print(Colors.RED + "🔥 ALL DATA HAS BEEN PERMANENTLY DELETED." + Colors.RESET)
+
+# --- MENU: EDIT PET ---
+def edit_pet(pets: dict):
+    """Edit existing pet details."""
+    if not pets:
+        print(Colors.YELLOW + "📭 No pets to edit." + Colors.RESET)
+        return
+
+    print("\n" + "="*40)
+    print(f"{Colors.CYAN}✏️ EDIT PET{Colors.RESET}")
+    print("="*40)
+    for i, name in enumerate(pets.keys(), 1):
+        print(f"{i}. {name}")
+
+    try:
+        idx = int(input("Select pet to edit (number): ")) - 1
+        pet_name = list(pets.keys())[idx]
+        pet = pets[pet_name]
+
+        print(f"\nEditing: {pet_name}")
+        print(f"Current: {pet.get('species', 'unknown')} | {pet.get('breed', 'unknown')} | Target: {pet.get('calorie_target', 100)} kcal")
+
+        new_species = input(f"New species (leave blank to keep '{pet.get('species', 'unknown')}'): ").strip()
+        if new_species:
+            pet['species'] = new_species
+
+        new_breed = input(f"New breed (leave blank to keep '{pet.get('breed', 'unknown')}'): ").strip()
+        if new_breed:
+            pet['breed'] = new_breed
+
+        cal_str = input(f"New calorie target (leave blank to keep {pet.get('calorie_target', 100)}): ").strip()
+        if cal_str:
+            pet['calorie_target'] = float(cal_str)
+
+        save_pets(pets)
+        print(Colors.GREEN + f"✅ Updated: {pet_name}" + Colors.RESET)
+
+    except (ValueError, IndexError):
+        print(Colors.RED + "❌ Invalid selection." + Colors.RESET)
+
+# --- MENU: LOG SOMETHING ---
+def log_something(pets: dict):
+    """Submenu for logging feeding, medication, or weight."""
+    if not pets:
+        print(Colors.YELLOW + "📭 No pets registered. Add a pet first." + Colors.RESET)
+        return
+
+    print("\n" + "="*40)
+    print(f"{Colors.CYAN}📝 LOG SOMETHING{Colors.RESET}")
+    print("="*40)
+    print("1. Log Feeding")
+    print("2. Log Medication")
+    print("3. Log Weight")
+    print("0. Back")
+
+    choice = input("Choose: ").strip()
+
+    if choice == "1":
+        print("\nSelect pet:")
+        for i, name in enumerate(pets.keys(), 1):
+            print(f"{i}. {name}")
+        try:
+            idx = int(input("Enter number: ")) - 1
+            pet_name = list(pets.keys())[idx]
+            grams = float(input("Enter food amount (grams): "))
+            calories = float(input("Enter calories (kcal): "))
+            log_feeding_entry(pets, pet_name, grams, calories)
+            print(Colors.GREEN + f"✅ Logged: {grams}g ({calories} kcal) for {pet_name}" + Colors.RESET)
+        except (ValueError, IndexError):
+            print(Colors.RED + "❌ Invalid input." + Colors.RESET)
+
+    elif choice == "2":
+        print("\nSelect pet:")
+        for i, name in enumerate(pets.keys(), 1):
+            print(f"{i}. {name}")
+        try:
+            idx = int(input("Enter number: ")) - 1
+            pet_name = list(pets.keys())[idx]
+            dose = input("Enter medication details (e.g., '5mg insulin'): ").strip()
+            if not dose:
+                print(Colors.YELLOW + "❌ Medication details required." + Colors.RESET)
+                return
+            log_medication_entry(pets, pet_name, dose)
+            print(Colors.GREEN + f"✅ Logged medication: {dose} for {pet_name}" + Colors.RESET)
+        except (ValueError, IndexError):
+            print(Colors.RED + "❌ Invalid input." + Colors.RESET)
+
+    elif choice == "3":
+        print("\nSelect pet:")
+        for i, name in enumerate(pets.keys(), 1):
+            print(f"{i}. {name}")
+        try:
+            idx = int(input("Enter number: ")) - 1
+            pet_name = list(pets.keys())[idx]
+            weight = float(input("Enter current weight (kg): "))
+            log_weight_entry(pets, pet_name, weight)
+            print(Colors.GREEN + f"✅ Logged weight: {weight}kg for {pet_name}" + Colors.RESET)
+        except (ValueError, IndexError):
+            print(Colors.RED + "❌ Invalid input." + Colors.RESET)
+
+    elif choice == "0":
+        return
+    else:
+        print(Colors.RED + "❌ Invalid option." + Colors.RESET)
+
+# --- MENU: REMINDERS ---
+def manage_reminders(pets: dict):
+    """Submenu for managing reminders, snooze, quiet hours."""
+    if not pets:
+        print(Colors.YELLOW + "📭 No pets registered." + Colors.RESET)
+        return
+
+    print("\n" + "="*40)
+    print(f"{Colors.CYAN}🔔 REMINDERS{Colors.RESET}")
+    print("="*40)
+    print("1. Toggle Feeding Reminder (individual)")
+    print("2. Toggle Medication Reminder (individual)")
+    print("3. Toggle All Reminders ON/OFF")
+    print("4. Snooze All Reminders (2 hrs)")
+    print("5. Set Quiet Hours")
+    print("0. Back")
+
+    choice = input("Choose: ").strip()
+
+    if choice == "1":
+        print("\nSelect pet to toggle feeding reminder:")
+        for i, name in enumerate(pets.keys(), 1):
+            status = "ON" if pets[name].get("feeding_reminder_enabled", False) else "OFF"
+            print(f"{i}. {name} — {status}")
+        try:
+            idx = int(input("Enter number: ")) - 1
+            pet_name = list(pets.keys())[idx]
+            toggle_reminder(pets, pet_name, "feeding")
+            status = "ON" if pets[pet_name].get("feeding_reminder_enabled", False) else "OFF"
+            save_pets(pets)
+            print(Colors.GREEN + f"✅ Feeding reminder for {pet_name} is now {status}" + Colors.RESET)
+        except (ValueError, IndexError):
+            print(Colors.RED + "❌ Invalid selection." + Colors.RESET)
+
+    elif choice == "2":
+        print("\nSelect pet to toggle medication reminder:")
+        for i, name in enumerate(pets.keys(), 1):
+            status = "ON" if pets[name].get("medication_reminder_enabled", False) else "OFF"
+            print(f"{i}. {name} — {status}")
+        try:
+            idx = int(input("Enter number: ")) - 1
+            pet_name = list(pets.keys())[idx]
+            toggle_reminder(pets, pet_name, "medication")
+            status = "ON" if pets[pet_name].get("medication_reminder_enabled", False) else "OFF"
+            save_pets(pets)
+            print(Colors.GREEN + f"✅ Medication reminder for {pet_name} is now {status}" + Colors.RESET)
+        except (ValueError, IndexError):
+            print(Colors.RED + "❌ Invalid selection." + Colors.RESET)
+
+    elif choice == "3":
+        print("\nSelect pet to toggle ALL reminders:")
+        for i, name in enumerate(pets.keys(), 1):
+            feed_status = "ON" if pets[name].get("feeding_reminder_enabled", False) else "OFF"
+            med_status = "ON" if pets[name].get("medication_reminder_enabled", False) else "OFF"
+            print(f"{i}. {name} — Feeding: {feed_status} | Medication: {med_status}")
+        try:
+            idx = int(input("Enter number: ")) - 1
+            pet_name = list(pets.keys())[idx]
+            # Toggle both
+            current_feed = pets[pet_name].get("feeding_reminder_enabled", False)
+            current_med = pets[pet_name].get("medication_reminder_enabled", False)
+            new_state = not (current_feed or current_med)  # If either is on, turn both off. Else, turn both on.
+            pets[pet_name]["feeding_reminder_enabled"] = new_state
+            pets[pet_name]["medication_reminder_enabled"] = new_state
+            save_pets(pets)
+            state_str = "ON" if new_state else "OFF"
+            print(Colors.GREEN + f"✅ All reminders for {pet_name} set to {state_str}" + Colors.RESET)
+        except (ValueError, IndexError):
+            print(Colors.RED + "❌ Invalid selection." + Colors.RESET)
+
+    elif choice == "4":
+        print("\nSelect pet to snooze reminders:")
+        for i, name in enumerate(pets.keys(), 1):
+            print(f"{i}. {name}")
+        try:
+            idx = int(input("Enter number: ")) - 1
+            pet_name = list(pets.keys())[idx]
+            snooze_reminder(pets, pet_name, 2)
+            save_pets(pets)
+            print(Colors.GREEN + f"✅ Reminders snoozed for {pet_name} until 2 hours from now." + Colors.RESET)
+        except (ValueError, IndexError):
+            print(Colors.RED + "❌ Invalid selection." + Colors.RESET)
+
+    elif choice == "5":
+        print("\nSelect pet to set quiet hours:")
+        for i, name in enumerate(pets.keys(), 1):
+            print(f"{i}. {name}")
+        try:
+            idx = int(input("Enter number: ")) - 1
+            pet_name = list(pets.keys())[idx]
+            start = input("Enter quiet start time (HH:MM): ").strip()
+            end = input("Enter quiet end time (HH:MM): ").strip()
+            if not is_valid_time(start) or not is_valid_time(end):
+                print(Colors.RED + "❌ Invalid time format. Use HH:MM (e.g., 22:00)." + Colors.RESET)
+                return
+            set_quiet_hours(pets, pet_name, start, end)
+            save_pets(pets)
+            print(Colors.GREEN + f"✅ Quiet hours set for {pet_name}: {start} - {end}" + Colors.RESET)
+        except (ValueError, IndexError):
+            print(Colors.RED + "❌ Invalid selection." + Colors.RESET)
+
+    elif choice == "0":
+        return
+    else:
+        print(Colors.RED + "❌ Invalid option." + Colors.RESET)
+
+# --- MENU: DAILY SUMMARY ---
+def daily_summary(pets: dict):
+    """Show daily summary for a single selected pet."""
+    if not pets:
+        print(Colors.YELLOW + "📭 No pets registered." + Colors.RESET)
+        return
+
+    print("\n" + "="*40)
+    print(f"{Colors.CYAN}📊 DAILY SUMMARY{Colors.RESET}")
+    print("="*40)
+    print("Select a pet to view daily summary:")
+
+    for i, name in enumerate(pets.keys(), 1):
+        print(f"{i}. {name}")
+
+    try:
+        idx = int(input("Enter number: ")) - 1
+        pet_name = list(pets.keys())[idx]
+        print(f"\n{Colors.CYAN}📋 DAILY SUMMARY FOR {pet_name.upper()}{Colors.RESET}")
+        print_daily_summary(pets, pet_name)  # Pass pet_name to show only one
+    except (ValueError, IndexError):
+        print(Colors.RED + "❌ Invalid selection." + Colors.RESET)
+
+# --- MAIN MENU ---
 def main():
-    # Start background feeding scheduler for all pets
-    for pet in pets.values():
-        if pet.get("reminder_enabled", False):
-            start_feeding_scheduler(pet, pets)  # ✅ Pass the global pets dict
+    pets = load_pets()  # ✅ This now auto-migrates old data!
+    start_feeding_scheduler(pets)  # Start background reminder thread
+
     while True:
-        print("""
-╔═══════════════════════════════════════════╗
- 🌸🐾   P a w C a r e   T r a c k e r 🐾🌸
-╚═══════════════════════════════════════════╝
-1 Add Pet
-2 Edit Pet
-3 Search Pet by Name
-4 Log Feeding
-5 Log Medication
-6 Log Weight
-7 Daily Summary
-8 Weight Graph
-9 Weekly Weight Trend
-10 Reminders
-11 Set Feeding Schedule
-X Delete All Data
-0 Exit
-""")
+        print("\n" + "="*60)
+        print(f"{Colors.CYAN}🐾 PET HEALTH TRACKER v3.1{Colors.RESET}")
+        print("="*60)
+        print("1. Add New Pet")
+        print("2. Edit Pet")
+        print("3. List All Pets")
+        print("4. Log Something")
+        print("5. Reminders")
+        print("6. Daily Summary")
+        print("7. Weekly Weight Trend")
+        print("8. View All Logs (JSON)")
+        print("9. Delete All Data")
+        print("0. Exit")
+        print("-"*60)
+
         choice = input("Choose an option: ").strip()
-        # --------------------------
-        # Add Pet
-        # --------------------------
+
         if choice == "1":
-            name = input("Pet name: ").strip()
-            weight = float(input("Weight (kg): "))
-            cal_target = int(input("Daily calorie target: "))
-            cal_density = int(input("Food calorie density per 100g: "))
-            pet_id = str(max([int(k) for k in pets.keys()] + [0]) + 1)
-            pets[pet_id] = {
+            name = input("Enter pet name: ").strip()
+            if not name:
+                print(Colors.YELLOW + "❌ Name cannot be empty." + Colors.RESET)
+                continue
+            species = input("Enter species (dog/cat/etc): ").strip() or "unknown"
+            breed = input("Enter breed (optional): ").strip() or "unknown"
+            cal_str = input("Enter daily calorie target (kcal, default 100): ").strip()
+            calorie_target = float(cal_str) if cal_str else 100.0
+
+            pets[name] = {
                 "name": name,
-                "weight": weight,
-                "calorie_target": cal_target,
-                "calorie_density": cal_density,
-                "feedings": [],
-                "medications": [],
-                "weight_history": [],
-                "feeding_times": ["09:00", "15:00", "21:00"],
-                "reminder_enabled": True,
+                "species": species,
+                "breed": breed,
+                "calorie_target": calorie_target,
+                "feeding_reminder_enabled": False,
+                "medication_reminder_enabled": False,
+                "feeding_schedule": [],
+                "medication_times": [],
                 "snooze_until": None,
-                "quiet_hours": {"start": None, "end": None}
+                "quiet_hours": None
             }
-            save_pets()
-            log_action(f"🐾 Added new pet: {name}")
-            print(color_text(f"✅ {name} added!\n", Colors.GREEN))
-            if pets[pet_id]["reminder_enabled"]:
-                start_feeding_scheduler(pets[pet_id], pets)  # ✅ Pass pets dict
-        # --------------------------
-        # Edit Pet
-        # --------------------------
+            save_pets(pets)
+            print(Colors.GREEN + f"✅ Added pet: {name}" + Colors.RESET)
+
         elif choice == "2":
-            pet, pet_id = find_pet_by_name()
-            if pet and confirm_action(f"✏️ Are you sure you want to edit {pet['name']}?"):
-                edit_pet(pet)
-                save_pets()
-                log_action(f"✏️ Edited pet: {pet['name']}")
-                print(color_text(f"✅ {pet['name']} updated.\n", Colors.GREEN))
-        # --------------------------
-        # Search Pet
-        # --------------------------
+            edit_pet(pets)
+
         elif choice == "3":
-            pet, pet_id = find_pet_by_name()
-            if pet:
-                print()
-        # --------------------------
-        # Log Feeding
-        # --------------------------
+            if not pets:
+                print(Colors.YELLOW + "📭 No pets registered." + Colors.RESET)
+            else:
+                print(f"\n{Colors.CYAN}📋 LIST OF PETS{Colors.RESET}")
+                for pet_id, info in pets.items():
+                    pet_name = info.get("name", "Unnamed Pet")
+                    species = info.get("species", "unknown")
+                    breed = info.get("breed", "unknown")
+                    cal_target = info.get("calorie_target", 100.0)
+                    print(f"  {Colors.CYAN}{pet_name}{Colors.RESET} | {species} | {breed} | Target: {cal_target:.1f} kcal")
+
         elif choice == "4":
-            pet, pet_id = find_pet_by_name()
-            if pet:
-                grams = float(input("Grams fed: "))
-                log_feeding_entry(pet, grams)
-                save_pets()
-                total_cal = sum(f.get("calories", 0) for f in pet.get("feedings", []))
-                if total_cal < pet.get("calorie_target", 0):
-                    print(color_text(f"⚠️ Feeding below daily calorie target! ({total_cal}/{pet['calorie_target']})", Colors.RED))
-                print(color_text(f"✅ Feeding logged for {pet['name']}.\n", Colors.GREEN))
-        # --------------------------
-        # Log Medication
-        # --------------------------
+            log_something(pets)
+
         elif choice == "5":
-            pet, pet_id = find_pet_by_name()
-            if pet:
-                med_name = input("Medication name: ").strip()
-                dose = input("Dose: ").strip()
-                if confirm_action(f"💊 Log {dose} of {med_name} for {pet['name']}?"):
-                    log_medication_entry(pet, med_name, dose)
-                    save_pets()
-                    print(color_text(f"✅ Medication logged for {pet['name']}.\n", Colors.GREEN))
-        # --------------------------
-        # Log Weight
-        # --------------------------
+            manage_reminders(pets)
+
         elif choice == "6":
-            pet, pet_id = find_pet_by_name()
-            if pet:
-                weight = float(input("Enter new weight (kg): "))
-                if confirm_action(f"⚖️ Log new weight {weight}kg for {pet['name']}?"):
-                    log_weight_entry(pet, weight)
-                    save_pets()
-                    print(color_text(f"✅ Weight logged for {pet['name']}.\n", Colors.GREEN))
-                    weekly_change = calculate_recent_weight_change(pet)
-                    if abs(weekly_change) >= 5:
-                        print(color_text(f"⚠️ Rapid weight change in last 7 days: {weekly_change:+.1f}%\n", Colors.RED))
-        # --------------------------
-        # Daily Summary
-        # --------------------------
+            daily_summary(pets)
+
         elif choice == "7":
-            pet, pet_id = find_pet_by_name()
-            if pet:
-                print_daily_summary(pet)
-                spark = mini_sparkline(pet)
-                if spark:
-                    print(f"📈 Weight trend: {spark}\n")
-        # --------------------------
-        # Weight Graph
-        # --------------------------
+            if not pets:
+                print(Colors.YELLOW + "📭 No pets registered." + Colors.RESET)
+                continue
+            print("\nSelect pet:")
+            for i, name in enumerate(pets.keys(), 1):
+                print(f"{i}. {name}")
+            try:
+                idx = int(input("Enter number: ")) - 1
+                pet_name = list(pets.keys())[idx]
+                plot_weekly_weight_trend(pets, pet_name)
+            except (ValueError, IndexError):
+                print(Colors.RED + "❌ Invalid selection." + Colors.RESET)
+
         elif choice == "8":
-            pet, pet_id = find_pet_by_name()
-            if pet:
-                plot_weight_graph(pet)
-        # --------------------------
-        # Weekly Weight Trend
-        # --------------------------
+            logs = load_logs()  # Helper below
+            print(f"\n{Colors.CYAN}📜 ALL LOGS (JSON){Colors.RESET}")
+            print(json.dumps(logs, indent=2, ensure_ascii=False))
+
         elif choice == "9":
-            pet, pet_id = find_pet_by_name()
-            if pet:
-                plot_weekly_weight_trend(pet)
-        # --------------------------
-        # Reminders Menu
-        # --------------------------
-        elif choice == "10":
-            pet, pet_id = find_pet_by_name()
-            if pet:
-                while True:
-                    print(f"""
---- Reminders for {pet['name']} ---
-1️⃣ Toggle Reminder On/Off
-2️⃣ Snooze Reminder (minutes)
-3️⃣ Set Quiet Hours
-4️⃣ Back to Main Menu
-Current status: {"🟢 On" if pet.get("reminder_enabled") else "🔴 Off"}
-""")
-                    r_choice = input("Choose an option: ").strip()
-                    if r_choice == "1":
-                        toggle_reminder(pet)
-                        save_pets()
-                    elif r_choice == "2":
-                        minutes = int(input("Snooze for how many minutes? "))
-                        snooze_reminder(pet, minutes)
-                        save_pets()
-                    elif r_choice == "3":
-                        start = input("Quiet hours start (HH:MM or empty): ").strip() or None
-                        end = input("Quiet hours end (HH:MM or empty): ").strip() or None
-                        set_quiet_hours(pet, start, end)
-                        save_pets()
-                    elif r_choice == "4":
-                        break
-                    else:
-                        print(color_text("⚠️ Invalid choice. Try again.\n", Colors.RED))
-        # --------------------------
-        # Set Feeding Schedule
-        # --------------------------
-        elif choice == "11":
-            pet, pet_id = find_pet_by_name()
-            if pet:
-                print(f"\nCurrent feeding times: {pet.get('feeding_times', [])}")
-                times_input = input("Enter feeding times separated by commas (HH:MM): ").strip()
-                if times_input:
-                    pet["feeding_times"] = [t.strip() for t in times_input.split(",")]
-                enable_reminder = input("Enable reminders? (yes/no): ").strip().lower()
-                pet["reminder_enabled"] = enable_reminder in ["yes", "y"]
-                save_pets()
-                print(color_text(f"✅ Feeding schedule updated for {pet['name']}\n", Colors.GREEN))
-                if pet["reminder_enabled"]:
-                    start_feeding_scheduler(pet, pets)  # ✅ Pass pets dict
-        # --------------------------
-        # Delete All Data
-        # --------------------------
-        elif choice.upper() == "X":
-            if confirm_action("⚠️ Are you sure you want to DELETE ALL DATA? This cannot be undone."):
-                if confirm_action("❗ Please confirm AGAIN to permanently delete all data."):
-                    pets.clear()
-                    save_pets()
-                    log_action("🗑️ All data deleted")
-                    print(color_text("✅ All data deleted!\n", Colors.RED))
-        # --------------------------
-        # Exit
-        # --------------------------
-        elif choice.upper() == "0":
-            print("Goodbye! 🌸")
+            confirm = input("⚠️  ARE YOU SURE? This will delete ALL pet and log data. Type 'YES' to confirm: ").strip().upper()
+            if confirm == "YES":
+                delete_all_data()
+                pets = {}  # Reset in memory
+            else:
+                print(Colors.YELLOW + "❌ Deletion cancelled." + Colors.RESET)
+
+        elif choice == "0":
+            print(Colors.CYAN + "👋 Goodbye! Caring for pets is important." + Colors.RESET)
             break
+
         else:
-            print(color_text("⚠️ Invalid choice. Try again.\n", Colors.RED))
+            print(Colors.RED + "❌ Invalid option. Try again." + Colors.RESET)
+
+# --- Helper to load logs (for menu option 8) ---
+def load_logs() -> list:
+    """Load logs from JSON file. Returns empty list if not found or corrupted."""
+    LOGS_FILE = "data/logs.json"
+    if not os.path.exists(LOGS_FILE):
+        return []
+    try:
+        with open(LOGS_FILE, 'r', encoding='utf-8') as f:
+            logs = json.load(f)
+            return logs if isinstance(logs, list) else []
+    except Exception:
+        return []
+
 if __name__ == "__main__":
     main()

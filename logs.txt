@@ -21,3 +21,6 @@
 [2026-02-20 16:13:16] 🔔 Reminder disabled for Arya
 [2026-02-20 16:13:20] 🔔 Reminder enabled for Arya
 [2026-02-20 16:14:37] ✏️ Edited pet: Arya
+[2026-02-20 17:18:51] Updated medication_times for Arya to ['09:00', '21:00']
+[2026-02-20 17:18:51] ✏️ Edited pet: Arya
+[2026-02-20 17:18:51] ✏️ Edited pet: Arya

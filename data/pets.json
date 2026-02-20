@@ -1,0 +1,65 @@
+{
+  "Whiskers Jr.": {
+    "name": "Whiskers Jr.",
+    "weight": 4.5,
+    "calorie_target": 280,
+    "calorie_density": 90,
+    "feeding_schedule": [
+      "08:00",
+      "18:00"
+    ],
+    "medication_times": [
+      "08:00",
+      "20:00"
+    ],
+    "feeding_reminder_enabled": false,
+    "medication_reminder_enabled": false,
+    "quiet_hours": {
+      "start": "22:00",
+      "end": "07:00"
+    },
+    "snooze_until": null,
+    "species": "unknown",
+    "breed": "unknown"
+  },
+  "Arya": {
+    "name": "Arya",
+    "weight": 3.3,
+    "calorie_target": 205,
+    "calorie_density": 85,
+    "feeding_schedule": [
+      "09:00",
+      "21:00"
+    ],
+    "medication_times": [
+      "09:00",
+      "21:00"
+    ],
+    "feeding_reminder_enabled": false,
+    "medication_reminder_enabled": false,
+    "quiet_hours": {
+      "start": "23:00",
+      "end": "06:00"
+    },
+    "snooze_until": null,
+    "species": "cat",
+    "breed": "domestic medium hair"
+  },
+  "Mittens": {
+    "name": "Mittens",
+    "weight": 3.1,
+    "calorie_target": 200,
+    "calorie_density": 88,
+    "feeding_schedule": [
+      "09:00",
+      "19:00"
+    ],
+    "medication_times": [],
+    "feeding_reminder_enabled": false,
+    "medication_reminder_enabled": false,
+    "quiet_hours": {},
+    "snooze_until": null,
+    "species": "unknown",
+    "breed": "unknown"
+  }
+}

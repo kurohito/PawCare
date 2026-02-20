@@ -1,5 +1,5 @@
 # utils/pet_editor.py
-from utils.logging_utils import log_action
+from utils.logging_utils import log_action, is_valid_time, color_text, Colors
 from datetime import datetime
 
 
@@ -29,7 +29,8 @@ def edit_pet(pet):
     """
     Edit a single pet dictionary safely.
     Allows editing: name, weight, calorie_target,
-    calorie_density, feeding_schedule.
+    calorie_density, feeding_schedule, medication_times,
+    and individual reminder toggles.
     """
 
     print(f"\nEditing {pet['name']}'s details.")
@@ -110,6 +111,68 @@ def edit_pet(pet):
                     changes['feeding_schedule'] = (schedule, cleaned_times)
             else:
                 print("⚠️ No valid times entered. Schedule unchanged.")
+
+    # --- MEDICATION TIMES ---
+    edit_med_times = input("\nDo you want to edit medication times? (yes/no): ").strip().lower()
+
+    if edit_med_times in ['yes', 'y']:
+        med_times = pet.get("medication_times", [])
+        print("Current medication times (24h format):", med_times if med_times else "None")
+
+        new_med_times = input(
+            "Enter new medication times, comma-separated (e.g., 08:00,20:00): "
+        ).strip()
+
+        if new_med_times:
+            times_list = [t.strip() for t in new_med_times.split(",") if t.strip()]
+            cleaned_times = _validate_and_clean_times(times_list)
+
+            if cleaned_times:
+                if cleaned_times != med_times:
+                    changes['medication_times'] = (med_times, cleaned_times)
+            else:
+                print("⚠️ No valid times entered. Medication schedule unchanged.")
+
+    # --- FEEDING REMINDER ---
+    current_feed_reminder = pet.get("feeding_reminder_enabled", True)
+    feed_reminder_input = input(f"Enable feeding reminders? [{'Yes' if current_feed_reminder else 'No'}]: ").strip().lower()
+    if feed_reminder_input in ["yes", "y"]:
+        changes['feeding_reminder_enabled'] = (current_feed_reminder, True)
+    elif feed_reminder_input in ["no", "n"]:
+        changes['feeding_reminder_enabled'] = (current_feed_reminder, False)
+    # Else: keep current
+
+    # --- MEDICATION REMINDER ---
+    current_med_reminder = pet.get("medication_reminder_enabled", True)
+    med_reminder_input = input(f"Enable medication reminders? [{'Yes' if current_med_reminder else 'No'}]: ").strip().lower()
+    if med_reminder_input in ["yes", "y"]:
+        changes['medication_reminder_enabled'] = (current_med_reminder, True)
+    elif med_reminder_input in ["no", "n"]:
+        changes['medication_reminder_enabled'] = (current_med_reminder, False)
+    # Else: keep current
+
+    # --- QUIET HOURS ---
+    current_q_start = pet.get("quiet_hours", {}).get("start")
+    current_q_end = pet.get("quiet_hours", {}).get("end")
+    print(f"\nCurrent quiet hours: {current_q_start} - {current_q_end}")
+    q_start = input("Quiet hours start (HH:MM or empty to skip): ").strip() or None
+    q_end = input("Quiet hours end (HH:MM or empty to skip): ").strip() or None
+
+    if q_start and q_end:
+        if not is_valid_time(q_start) or not is_valid_time(q_end):
+            print(color_text("❌ Invalid time format for quiet hours. Skipping.", Colors.RED))
+        else:
+            changes['quiet_hours'] = (pet.get("quiet_hours", {}), {"start": q_start, "end": q_end})
+    elif q_start or q_end:
+        print(color_text("⚠️ Quiet hours require both start and end. Skipping.", Colors.YELLOW))
+
+    # --- SNOOZE ---
+    current_snooze = pet.get("snooze_until")
+    if current_snooze:
+        print(f"Current snooze until: {current_snooze}")
+    snooze_input = input("Clear snooze? (yes/no): ").strip().lower()
+    if snooze_input in ["yes", "y"]:
+        changes['snooze_until'] = (current_snooze, None)
 
     # --- Apply changes ---
     if not changes:
