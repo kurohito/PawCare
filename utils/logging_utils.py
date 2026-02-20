@@ -78,7 +78,8 @@ def select_pet(pets):
 # --- LOGGING FUNCTIONS ---
 def log_feeding_entry(pets):
     """
-    Log a feeding entry for a selected pet (by number).
+    Log a feeding entry for a selected pet (by number), with option to use
+    current time or enter a custom date/time.
     """
     pet_name = select_pet(pets)
     if not pet_name:
@@ -88,6 +89,12 @@ def log_feeding_entry(pets):
         print(Colors.RED + "❌ Pet not found!" + Colors.RESET)
         return
 
+    food_name = input("Enter food name: ").strip()
+    if not food_name:
+        print(Colors.RED + "❌ Food name cannot be empty." + Colors.RESET)
+        return
+
+    # Get amount in grams
     try:
         grams = float(input("Enter food amount in grams: ").strip())
         if grams <= 0:
@@ -97,30 +104,54 @@ def log_feeding_entry(pets):
         print(Colors.RED + "❌ Invalid number." + Colors.RESET)
         return
 
-    calories = None
-    if "calories_per_100g" in pets[pet_name] and pets[pet_name]["calories_per_100g"]:
-        calories = (grams / 100) * pets[pet_name]["calories_per_100g"]
-        print(f"💡 Auto-calculated: {calories:.1f} kcal")
-    else:
-        cal_input = input("Enter calories (optional, press Enter to skip): ").strip()
-        if cal_input:
-            try:
-                calories = float(cal_input)
-                if calories < 0:
-                    print(Colors.RED + "❌ Calories must be non-negative." + Colors.RESET)
-                    return
-            except ValueError:
-                print(Colors.RED + "❌ Invalid calorie value." + Colors.RESET)
-                return
+    # Calculate calories if possible
+    calories_per_100g = pets[pet_name].get("calories_per_100g")
+    total_calories = None
+    if calories_per_100g:
+        total_calories = (grams / 100) * calories_per_100g
+        print(f"💡 Auto-calculated: {total_calories:.1f} kcal")
 
-    entry = {
-        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
+    # Ask user: current time or custom?
+    print("\nWhen was this meal fed?")
+    print("1. Use current date/time")
+    print("2. Enter custom date/time (YYYY-MM-DD HH:MM)")
+    time_choice = input("Choose (1 or 2): ").strip()
+
+    if time_choice == "1":
+        meal_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    elif time_choice == "2":
+        while True:
+            custom_time = input("Enter date/time (e.g., 2025-04-05 08:30): ").strip()
+            try:
+                # Parse and validate
+                dt = datetime.strptime(custom_time, "%Y-%m-%d %H:%M")
+                meal_time = dt.strftime("%Y-%m-%d %H:%M:%S")
+                break
+            except ValueError:
+                print(Colors.RED + "❌ Invalid format. Use YYYY-MM-DD HH:MM (e.g., 2025-04-05 08:30)" + Colors.RESET)
+    else:
+        print(Colors.RED + "❌ Invalid choice. Using current time." + Colors.RESET)
+        meal_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    # Optional notes
+    notes = input("Add notes (optional): ").strip() or ""
+
+    # Create log entry
+    log_entry = {
+        "food_name": food_name,
         "grams": grams,
-        "calories": round(calories, 2) if calories is not None else 0
+        "calories": round(total_calories, 2) if total_calories is not None else None,
+        "time": meal_time,
+        "notes": notes
     }
-    pets[pet_name].setdefault("feedings", []).append(entry)
+
+    # Add to pet's feedings list
+    pets[pet_name].setdefault("feedings", []).append(log_entry)
     save_pets(pets)
-    print(Colors.GREEN + "✅ Feeding logged!" + Colors.RESET)
+
+    # Confirm
+    cal_str = f" ({total_calories:.1f} kcal)" if total_calories is not None else " (calories unknown)"
+    print(Colors.GREEN + f"✅ Logged: {grams}g of {food_name}{cal_str} at {meal_time}" + Colors.RESET)
 
 def log_medication_entry(pets):
     """
@@ -205,6 +236,8 @@ def print_daily_summary(pets):
         if target:
             percent = (total_calories / target) * 100 if target > 0 else 0
             print(f"   🍽️  Feedings: {len(feedings)} meals | {total_calories:.1f} kcal / {target} kcal ({percent:.0f}%)")
+            if feedings:
+                print("      Last meal: " + format_time_for_display(feedings[-1]["time"]))
 
         # Medications (today or overdue)
         meds_today = []
@@ -470,10 +503,17 @@ def view_upcoming_medications(pets):
     print("="*60)
     input("Press Enter to return to main menu...")
 
+
 # --- MANAGEMENT FUNCTIONS ---
 def manage_medications(pets):
     """
-    Allows users to add, edit, or delete medications with scheduling and reminders.
+    Full medication management menu with reorganized options:
+    1. Add new medication
+    2. View upcoming medications
+    3. Mark medication as taken
+    4. Edit notes on medication
+    5. Delete medication entry
+    0. Back to main menu
     """
     if not pets:
         print(Colors.YELLOW + "⚠️  No pets to manage medications for. Add a pet first." + Colors.RESET)
@@ -494,9 +534,80 @@ def manage_medications(pets):
 
     if not all_meds:
         print(Colors.YELLOW + "⚠️  No medications set. Add one via Edit Pet." + Colors.RESET)
+        # Offer to add one immediately
+        add_new = input("Would you like to add a new medication now? (y/N): ").strip().lower()
+        if add_new == 'y':
+            # Reuse the "Add" logic from below
+            pet_name = input("Enter pet name: ").strip()
+            if pet_name not in pets:
+                print(Colors.RED + "❌ Pet not found!" + Colors.RESET)
+                return
+            medication = input("Medication name: ").strip()
+            if not medication:
+                print(Colors.RED + "❌ Medication name cannot be empty!" + Colors.RESET)
+                return
+            dose = input("Dose (e.g., 0.5ml): ").strip()
+            if not dose:
+                print(Colors.RED + "❌ Dose cannot be empty!" + Colors.RESET)
+                return
+            notes = input("📝 Optional notes: ").strip() or ""
+
+            frequency = input("Frequency (one_time/every_day/every_3_days/weekly/custom): ").strip().lower()
+            if frequency not in ["one_time", "every_day", "every_3_days", "weekly", "custom"]:
+                frequency = "one_time"
+
+            dosing_time = None
+            interval_hours = None
+
+            if frequency == "custom":
+                try:
+                    interval_hours = int(input("Interval in hours: "))
+                    dosing_time = input("Dosing time (HH:MM, e.g., 08:00): ").strip()
+                    if not dosing_time:
+                        dosing_time = None
+                except ValueError:
+                    print(Colors.RED + "❌ Invalid interval." + Colors.RESET)
+                    return
+            elif frequency == "every_day":
+                dosing_time = input("Dosing time (HH:MM, e.g., 08:00): ").strip() or None
+                interval_hours = 24
+            elif frequency == "every_3_days":
+                dosing_time = input("Dosing time (HH:MM, e.g., 08:00): ").strip() or None
+                interval_hours = 72
+            elif frequency == "weekly":
+                dosing_time = input("Dosing time (HH:MM, e.g., 08:00): ").strip() or None
+                interval_hours = 168
+
+            reminder_enabled = input("🔔 Enable reminder? (y/N): ").strip().lower() == 'y'
+
+            next_due = None
+            if frequency != "one_time":
+                today_str = datetime.now().strftime("%Y-%m-%d")
+                if dosing_time:
+                    next_due = f"{today_str} {dosing_time}"
+                else:
+                    next_due = f"{today_str} 09:00"
+
+            new_med = {
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                "medication": medication,
+                "dose": dose,
+                "notes": notes,
+                "frequency": frequency,
+                "interval_hours": interval_hours,
+                "dosing_time": dosing_time,
+                "next_due": next_due,
+                "reminder_enabled": reminder_enabled,
+                "taken": False
+            }
+
+            pets[pet_name]["medications"].append(new_med)
+            save_pets(pets)
+            print(Colors.GREEN + "✅ Medication added!" + Colors.RESET)
         return
 
     # Show all meds with status
+    print("All Medication Entries:")
     for item in all_meds:
         med = item["med"]
         next_due_str = med.get("next_due", "One-time")
@@ -508,21 +619,23 @@ def manage_medications(pets):
         status = format_medication_status(med)
         color = Colors.GREEN if status == "✅ Taken" else Colors.RED if status == "🚨 OVERDUE" else Colors.YELLOW
 
-        print(f"   [{item['id']}] {item['pet']} — {med['medication']} ({med['dose']})")
+        print(f"\n   [{item['id'] + 1}] {item['pet']} — {med['medication']} ({med['dose']})")
         print(f"      ➤ Due: {next_due_str} | {freq_display} | {color_text(status, color)}")
         if med.get("notes"):
             print(f"      ➤ Note: {med['notes']}")
         if med.get("reminder_enabled"):
             print(f"      ➤ 🔔 Reminder: ON")
-        print()
 
-    print("Options:")
-    print("1. Add New Medication")
-    print("2. Edit Medication")
-    print("3. Mark as Taken")
-    print("4. Delete Medication")
-    print("0. Back")
-    choice = input("Choose option: ").strip()
+    print("\n" + "🛠️  Options:")
+    print("   1. Add new medication")
+    print("   2. View upcoming medications")
+    print("   3. Mark medication as taken")
+    print("   4. Edit notes on medication")
+    print("   5. Delete medication entry")
+    print("   0. Back to main menu")
+    print("-" * 60)
+
+    choice = input("Choose an option (0-5): ").strip()
 
     if choice == "1":
         pet_name = input("Enter pet name: ").strip()
@@ -567,7 +680,6 @@ def manage_medications(pets):
 
         reminder_enabled = input("🔔 Enable reminder? (y/N): ").strip().lower() == 'y'
 
-        # Default next_due
         next_due = None
         if frequency != "one_time":
             today_str = datetime.now().strftime("%Y-%m-%d")
@@ -594,31 +706,12 @@ def manage_medications(pets):
         print(Colors.GREEN + "✅ Medication added!" + Colors.RESET)
 
     elif choice == "2":
-        try:
-            idx = int(input("Enter number to edit: ")) - 1
-            if idx < 0 or idx >= len(all_meds):
-                print(Colors.RED + "❌ Invalid selection." + Colors.RESET)
-                return
-            item = all_meds[idx]
-            pet_name = item["pet"]
-            med = item["med"]
-            print(f"Editing: {pet_name} — {med['medication']} ({med['dose']})")
-            new_med = input(f"New name (current: {med['medication']}): ").strip() or med['medication']
-            new_dose = input(f"New dose (current: {med['dose']}): ").strip() or med['dose']
-            new_notes = input(f"New notes (current: {med.get('notes', '')}): ").strip() or med.get('notes', '')
-            new_reminder = input(f"Enable reminder? (y/N, current: {'ON' if med.get('reminder_enabled') else 'OFF'}): ").strip().lower()
-            med["medication"] = new_med
-            med["dose"] = new_dose
-            med["notes"] = new_notes
-            med["reminder_enabled"] = new_reminder == 'y'
-            save_pets(pets)
-            print(Colors.GREEN + "✅ Medication updated!" + Colors.RESET)
-        except ValueError:
-            print(Colors.RED + "❌ Invalid input." + Colors.RESET)
+        # Call the existing view function directly
+        view_upcoming_medications(pets)
 
     elif choice == "3":
         try:
-            idx = int(input("Enter number to mark as taken: ")) - 1
+            idx = int(input("Enter number of medication to mark as taken: ")) - 1
             if idx < 0 or idx >= len(all_meds):
                 print(Colors.RED + "❌ Invalid selection." + Colors.RESET)
                 return
@@ -626,6 +719,7 @@ def manage_medications(pets):
             pet_name = item["pet"]
             med = item["med"]
             med["taken"] = True
+            med["taken_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
             save_pets(pets)
             print(Colors.GREEN + "✅ Marked as taken!" + Colors.RESET)
         except ValueError:
@@ -633,7 +727,24 @@ def manage_medications(pets):
 
     elif choice == "4":
         try:
-            idx = int(input("Enter number to delete: ")) - 1
+            idx = int(input("Enter number of medication to edit notes: ")) - 1
+            if idx < 0 or idx >= len(all_meds):
+                print(Colors.RED + "❌ Invalid selection." + Colors.RESET)
+                return
+            item = all_meds[idx]
+            pet_name = item["pet"]
+            med = item["med"]
+            old_notes = med.get("notes", "")
+            new_notes = input(f"Current notes: \"{old_notes}\"\nNew notes (leave blank to clear): ").strip()
+            med["notes"] = new_notes
+            save_pets(pets)
+            print(Colors.GREEN + "✅ Notes updated!" + Colors.RESET)
+        except ValueError:
+            print(Colors.RED + "❌ Invalid input." + Colors.RESET)
+
+    elif choice == "5":
+        try:
+            idx = int(input("Enter number of medication to delete: ")) - 1
             if idx < 0 or idx >= len(all_meds):
                 print(Colors.RED + "❌ Invalid selection." + Colors.RESET)
                 return
@@ -649,7 +760,11 @@ def manage_medications(pets):
     elif choice == "0":
         return
     else:
-        print(Colors.RED + "❌ Invalid option." + Colors.RESET)
+        print(Colors.RED + "❌ Invalid option. Please choose 0–5." + Colors.RESET)
+
+    # Prompt to return after action
+    input("\nPress Enter to return to main menu...")
+
 
 def manage_feeding_schedule(pets):
     if not pets:
@@ -752,7 +867,7 @@ def export_logs_to_csv(pets, filename):
         writer.writerow(["Pet", "Type", "Timestamp", "Details"])
         for pet_name, pet in pets.items():
             for log in pet.get("feedings", []):
-                writer.writerow([pet_name, "Feeding", log["timestamp"], f"{log['grams']}g ({log['calories']} kcal)"])
+                writer.writerow([pet_name, "Feeding", log["time"], f"{log['grams']}g ({log['calories']} kcal)"])
             for log in pet.get("medications", []):
                 taken = "✅ Taken" if log.get("taken") else "❌ Not taken"
                 writer.writerow([pet_name, "Medication", log["timestamp"], f"{log['medication']} {log['dose']} - {taken}"])
@@ -773,3 +888,12 @@ def export_logs_to_json(pets, filename):
     with open(f"exports/{filename}", 'w') as f:
         json.dump(export_data, f, indent=2, default=str)
     print(Colors.GREEN + f"✅ Logs exported to exports/{filename}" + Colors.RESET)
+
+# --- BONUS: Helper to format time for display ---
+def format_time_for_display(time_str):
+    """Convert 'YYYY-MM-DD HH:MM:SS' to 'MMM D, h:mm A' (e.g., Apr 5, 8:30 AM)"""
+    try:
+        dt = datetime.strptime(time_str, "%Y-%m-%d %H:%M:%S")
+        return dt.strftime("%b %d, %I:%M %p").replace(" 0", " ")  # Remove leading zero
+    except:
+        return time_str
