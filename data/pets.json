@@ -5,109 +5,36 @@
         "target_daily_calories": 206,
         "medications": [
             {
-                "timestamp": "2026-02-20 21:28",
+                "timestamp": "2026-02-20 22:06",
                 "medication": "Metacam",
                 "dose": "0.33ml",
-                "notes": "Pain relief after surgery",
+                "notes": "For pain relief after surgery, take for 1 week.",
                 "frequency": "every_day",
                 "interval_hours": 24,
                 "dosing_time": "09:00",
                 "next_due": "2026-02-21 09:00",
                 "reminder_enabled": true
+            },
+            {
+                "timestamp": "2026-02-20 22:07",
+                "medication": "Dermotic",
+                "dose": "0.5ml per ear",
+                "notes": "For an ear infection, take for two weeks.",
+                "frequency": "custom",
+                "interval_hours": 12,
+                "dosing_time": "09:00",
+                "next_due": "2026-02-21 09:00",
+                "reminder_enabled": true
             }
         ],
-        "feedings": [
-            {
-                "timestamp": "2025-04-07 08:15",
-                "grams": 45,
-                "calories": 110
-            },
-            {
-                "timestamp": "2025-04-07 17:30",
-                "grams": 50,
-                "calories": 125
-            },
-            {
-                "timestamp": "2025-04-06 08:20",
-                "grams": 48,
-                "calories": 118
-            },
-            {
-                "timestamp": "2025-04-05 08:10",
-                "grams": 42,
-                "calories": 105
-            },
-            {
-                "timestamp": "2026-02-20 21:44",
-                "grams": 97.0,
-                "calories": 80.51
-            }
-        ],
-        "weights": [
-            {
-                "date": "2025-04-07",
-                "weight": 3.3
-            },
-            {
-                "date": "2025-04-01",
-                "weight": 3.1
-            },
-            {
-                "date": "2025-03-25",
-                "weight": 2.9
-            },
-            {
-                "date": "2025-03-18",
-                "weight": 2.8
-            }
-        ],
+        "feedings": [],
+        "weights": [],
         "feeding_schedule": [
             "09:00",
             "14:00",
             "21:00"
         ],
-        "feeding_reminders": true
-    },
-    "Leo": {
-        "species": "dog",
-        "weight": 15.2,
-        "target_daily_calories": 520,
-        "medications": [],
-        "feedings": [
-            {
-                "timestamp": "2025-04-07 07:00",
-                "grams": 180,
-                "calories": 320
-            },
-            {
-                "timestamp": "2025-04-07 18:00",
-                "grams": 160,
-                "calories": 285
-            },
-            {
-                "timestamp": "2025-04-06 07:10",
-                "grams": 175,
-                "calories": 310
-            }
-        ],
-        "weights": [
-            {
-                "date": "2025-04-07",
-                "weight": 15.2
-            },
-            {
-                "date": "2025-04-01",
-                "weight": 15.5
-            },
-            {
-                "date": "2025-03-25",
-                "weight": 15.8
-            }
-        ],
-        "feeding_schedule": [
-            "07:00",
-            "18:00"
-        ],
-        "feeding_reminders": true
+        "feeding_reminders": true,
+        "calories_per_100g": 83.0
     }
 }
